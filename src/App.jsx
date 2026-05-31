@@ -75,6 +75,7 @@ export default function App() {
   const [view, setView] = useState("dashboard");
   const [currentId, setCurrentId] = useState(null);
   const [toast, setToast] = useState("");
+  const [navOpen, setNavOpen] = useState(false);
   const toastTimer = useRef(null);
 
   function notify(msg) {
@@ -149,7 +150,7 @@ export default function App() {
   const NAV = [
     { key: "dashboard", label: "Dashboard", icon: I.dashboard },
     { key: "items", label: "All Items", icon: I.items },
-    { key: "new", label: "New Item", icon: I.add },
+    ...(isPrincipal ? [{ key: "new", label: "New Item", icon: I.add }] : []),
     ...(isPrincipal ? [{ key: "projects", label: "Projects", icon: I.projects }] : []),
     { key: "activity", label: "Activity", icon: I.activity },
     { key: "profiles", label: "Profiles", icon: I.user },
@@ -163,7 +164,8 @@ export default function App() {
 
   return (
     <div className="app">
-      <aside className="sidebar">
+      {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
+      <aside className={"sidebar" + (navOpen ? " open" : "")}>
         <div className="brand">
           <div className="logo"><img src={markUrl} alt="Ivest" /></div>
           <div className="name">Interactive GTD<small>Stage 1</small></div>
@@ -172,7 +174,7 @@ export default function App() {
           <div className="sect">Workspace</div>
           {NAV.map((n) => (
             <button key={n.key} className={view === n.key ? "active" : ""}
-              onClick={() => { setCurrentId(null); setView(n.key); }}>
+              onClick={() => { setCurrentId(null); setView(n.key); setNavOpen(false); }}>
               <Ico d={n.icon} /><span>{n.label}</span>
               {n.key === "dashboard" && (
                 <span className={"badge " + (myQueue ? "" : "zero")}>{myQueue}</span>
@@ -181,7 +183,7 @@ export default function App() {
           ))}
         </nav>
         <div className="sb-foot">
-          <button className="who-card" onClick={() => setView("profiles")}>
+          <button className="who-card" onClick={() => { setView("profiles"); setNavOpen(false); }}>
             <Avatar k={me} size={34} profiles={profiles} />
             <div className="meta">
               <div className="nm">{profile.name}</div>
@@ -193,6 +195,7 @@ export default function App() {
 
       <div className="main">
         <div className="topbar">
+          <button className="btn ghost sm hamburger" aria-label="Menu" onClick={() => setNavOpen(true)}><Ico d={I.menu} /></button>
           <h1>{titles[view]}</h1>
           <div className="spacer" />
           <button className="btn ghost sm" onClick={() => applyTheme(theme === "dark" ? "light" : "dark")}>
@@ -211,7 +214,7 @@ export default function App() {
           {view === "dashboard" && <Dashboard ctx={ctx} />}
           {view === "items" && <ItemsList ctx={ctx} />}
           {view === "detail" && current && <ItemDetail ctx={ctx} item={current} />}
-          {view === "new" && <NewItem ctx={ctx} />}
+          {view === "new" && isPrincipal && <NewItem ctx={ctx} />}
           {view === "projects" && isPrincipal && <Projects ctx={ctx} />}
           {view === "activity" && <Activity ctx={ctx} />}
           {view === "profiles" && <Profiles ctx={ctx} />}
@@ -274,9 +277,11 @@ function Dashboard({ ctx }) {
           <div className="sub">Here's where things stand right now.</div>
         </div>
         <div className="spacer" />
-        <button className="btn primary" onClick={() => ctx.goNew()}>
-          <Ico d={I.add} /> New item
-        </button>
+        {isPrincipal && (
+          <button className="btn primary" onClick={() => ctx.goNew()}>
+            <Ico d={I.add} /> New item
+          </button>
+        )}
       </div>
 
       {isPrincipal ? (
