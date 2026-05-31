@@ -50,6 +50,10 @@ export async function listActivity() {
   return data || [];
 }
 
+export async function updateItem(id, fields) {
+  return supabase.from("action_items").update(fields).eq("id", id);
+}
+
 export async function createItem(fields, actorKey) {
   const { data, error } = await supabase.from("action_items")
     .insert({ ...fields, source: "manual", status: "open" })

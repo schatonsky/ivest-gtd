@@ -360,6 +360,9 @@ function ItemDetail({ ctx, item }) {
   const [comment, setComment] = useState("");
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [descDraft, setDescDraft] = useState("");
   const answerRef = useRef(null);
   const owner = ownerOf(item);
   const itemComments = ctx.comments.filter((c) => c.action_item_id === item.id);
@@ -388,6 +391,15 @@ function ItemDetail({ ctx, item }) {
   const doFollowup = () => {
     const note = window.prompt("What follow-up or change do you need from Nicole?");
     run(async () => { await api.requestFollowup(item, note || "", me); ctx.notify("Sent back to Nicole as follow-up"); });
+  };
+  const startEdit = () => { setTitleDraft(item.title); setDescDraft(item.description || ""); setEditing(true); };
+  const saveEdit = () => {
+    if (!titleDraft.trim()) { ctx.notify("Title can't be empty"); return; }
+    run(async () => {
+      await api.updateItem(item.id, { title: titleDraft.trim(), description: descDraft });
+      await api.logActivity(item.id, me, "Edited details");
+      setEditing(false); ctx.notify("Item updated");
+    });
   };
 
   // actions per role + state
@@ -431,13 +443,33 @@ function ItemDetail({ ctx, item }) {
       </div>
       <div className="detail-wrap">
         <div className="panel">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}><StateBadge s={item.status} /><Prio p={item.priority} /></div>
-          <h3>{item.title}</h3>
-          <div className="muted">Created by {profileFor(item.created_by, profiles).name} · {ago(item.created_at)}</div>
-          {banner}
-          <div className="desc">{item.description}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <StateBadge s={item.status} /><Prio p={item.priority} />
+            <div style={{ flex: 1 }} />
+            {!editing && <button className="btn ghost sm" onClick={startEdit}><Ico d={I.pencil} /> Edit</button>}
+          </div>
+          {editing ? (
+            <div style={{ marginTop: 12 }}>
+              <label className="fld">Title</label>
+              <input type="text" style={{ width: "100%" }} value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} placeholder="A clear task name…" />
+              <label className="fld" style={{ marginTop: 14 }}>Description</label>
+              <textarea value={descDraft} onChange={(e) => setDescDraft(e.target.value)} placeholder="Details / context…" />
+              <div className="actions">
+                <button className="btn primary" disabled={busy} onClick={saveEdit}><Ico d={I.check} /> Save</button>
+                <button className="btn ghost" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+              </div>
+              <div className="hint">The original email stays attached below for reference.</div>
+            </div>
+          ) : (
+            <>
+              <h3>{item.title}</h3>
+              <div className="muted">Created by {profileFor(item.created_by, profiles).name} · {ago(item.created_at)}</div>
+              {banner}
+              {item.description && <div className="desc">{item.description}</div>}
+            </>
+          )}
           {item.source === "email" && <EmailAttachment item={item} />}
-          <div className="actions">{actions.length ? actions : <span className="muted">No actions for you in this state.</span>}</div>
+          {!editing && <div className="actions">{actions.length ? actions : <span className="muted">No actions for you in this state.</span>}</div>}
 
           <div className="thread">
             <h4><Ico d={I.chat} /> Conversation</h4>
