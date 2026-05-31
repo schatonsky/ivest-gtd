@@ -699,8 +699,8 @@ function Projects({ ctx }) {
   };
   return (
     <>
-      <div className="page-head"><div><h2>Projects</h2><div className="sub">{isPrincipal ? "Managed by Stephane" : "Stephane manages the project list"}</div></div><div className="spacer" />
-        {isPrincipal && <button className="btn primary" onClick={add}><Ico d={I.add} /> New project</button>}</div>
+      <div className="page-head"><div><h2>Projects</h2><div className="sub">Group action items by project</div></div><div className="spacer" />
+        <button className="btn primary" onClick={add}><Ico d={I.add} /> New project</button></div>
       <div className="group">
         {projects.map((p) => {
           const n = items.filter((i) => i.project_id === p.id && i.status !== "closed").length;
