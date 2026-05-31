@@ -358,6 +358,7 @@ function ItemsList({ ctx }) {
   const { items, projects, contacts, locations } = ctx;
   const init = ctx.initialFilter || {};
   const [f, setF] = useState({ status: init.status || "all", project: init.project || "all", contact: init.contact || "all", location: init.location || "all", source: "all", q: "" });
+  const [sort, setSort] = useState("recent");
   let list = items.slice();
   if (f.status !== "all") list = list.filter((i) => i.status === f.status);
   if (f.project !== "all") list = list.filter((i) => i.project_id === f.project);
@@ -365,6 +366,12 @@ function ItemsList({ ctx }) {
   if (f.location !== "all") list = list.filter((i) => i.location_id === f.location);
   if (f.source !== "all") list = list.filter((i) => i.source === f.source);
   if (f.q) list = list.filter((i) => (i.title + " " + (i.description || "")).toLowerCase().includes(f.q.toLowerCase()));
+  if (sort === "priority") {
+    const rank = { high: 0, normal: 1, low: 2 };
+    list = list.slice().sort((a, b) => ((rank[a.priority] ?? 3) - (rank[b.priority] ?? 3)) || (new Date(b.updated_at) - new Date(a.updated_at)));
+  } else if (sort === "due") {
+    list = list.slice().sort((a, b) => (a.due_date ? 0 : 1) - (b.due_date ? 0 : 1) || String(a.due_date || "").localeCompare(String(b.due_date || "")));
+  }
   return (
     <>
       <div className="page-head">
@@ -394,6 +401,11 @@ function ItemsList({ ctx }) {
           <option value="all">Any source</option>
           <option value="email">Email</option>
           <option value="manual">Manual</option>
+        </select>
+        <select value={sort} onChange={(e) => setSort(e.target.value)}>
+          <option value="recent">Sort: Recent</option>
+          <option value="priority">Sort: Priority</option>
+          <option value="due">Sort: Due date</option>
         </select>
       </div>
       <div className="group">
@@ -773,9 +785,13 @@ function NewItem({ ctx }) {
    Projects (principal only)
    ============================================================ */
 function Projects({ ctx }) {
-  const { projects, items, isPrincipal } = ctx;
+  const { projects, items, contacts, isPrincipal } = ctx;
   const [sort, setSort] = useState("custom");
   const openCount = (id) => items.filter((i) => i.project_id === id && i.status !== "closed").length;
+  const contactsFor = (pid) => {
+    const ids = [...new Set(items.filter((i) => i.project_id === pid).map((i) => i.contact_id).filter(Boolean))];
+    return ids.map((id) => contacts.find((c) => c.id === id)).filter(Boolean);
+  };
   const reorder = async (arr) => { await Promise.all(arr.map((p, i) => api.updateProjectOrder(p.id, i + 1))); await ctx.reload(); };
   const move = (i, dir) => {
     const arr = projects.slice(); const j = i + dir;
@@ -827,6 +843,9 @@ function Projects({ ctx }) {
                 <span className="row-open" onClick={() => ctx.goFiltered({ project: p.id })} title="View items">
                   <b>{p.name}</b><span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
                 </span>
+                <span className="mini-tags">
+                  {contactsFor(p.id).map((c) => <span key={c.id} className="tag">{c.name}</span>)}
+                </span>
                 <div style={{ flex: 1 }} />
                 <button className="btn ghost sm" onClick={() => rename(p)}>Rename</button>
                 {isPrincipal && <button className="btn danger sm" onClick={() => del(p)}>Delete</button>}
@@ -843,9 +862,13 @@ function Projects({ ctx }) {
    Contacts (same rights model as Projects)
    ============================================================ */
 function Contacts({ ctx }) {
-  const { contacts, items, isPrincipal } = ctx;
+  const { contacts, items, projects, isPrincipal } = ctx;
   const [sort, setSort] = useState("custom");
   const openCount = (id) => items.filter((i) => i.contact_id === id && i.status !== "closed").length;
+  const projsFor = (cid) => {
+    const ids = [...new Set(items.filter((i) => i.contact_id === cid).map((i) => i.project_id).filter(Boolean))];
+    return ids.map((id) => projects.find((p) => p.id === id)).filter(Boolean);
+  };
   const reorder = async (arr) => { await Promise.all(arr.map((c, i) => api.updateContactOrder(c.id, i + 1))); await ctx.reload(); };
   const move = (i, dir) => {
     const arr = contacts.slice(); const j = i + dir;
@@ -905,6 +928,11 @@ function Contacts({ ctx }) {
                   <b>{c.name}</b>
                   {c.email && <span className="badge-mini">{c.email}</span>}
                   <span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
+                </span>
+                <span className="mini-tags">
+                  {projsFor(c.id).map((p) => (
+                    <span key={p.id} className="tag"><span className="pdot" style={{ background: p.color }} />{p.name}</span>
+                  ))}
                 </span>
                 <div style={{ flex: 1 }} />
                 <button className="btn ghost sm" onClick={() => edit(c)}>Edit</button>
