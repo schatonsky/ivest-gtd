@@ -29,6 +29,16 @@ export async function listContacts() {
   const { data } = await supabase.from("contacts").select("*").order("name");
   return data || [];
 }
+export async function createContact(name, email) {
+  return supabase.from("contacts").insert({ name, email: email || null }).select().single();
+}
+export async function updateContact(id, fields) {
+  return supabase.from("contacts").update(fields).eq("id", id);
+}
+export async function deleteContact(id) {
+  // action_items.contact_id is ON DELETE SET NULL — items are kept, just untagged
+  return supabase.from("contacts").delete().eq("id", id);
+}
 export async function createProject(name, color) {
   return supabase.from("projects").insert({ name, color }).select().single();
 }

@@ -165,6 +165,7 @@ export default function App() {
     { key: "items", label: "All Items", icon: I.items },
     { key: "new", label: "New Item", icon: I.add },
     { key: "projects", label: "Projects", icon: I.projects },
+    { key: "contacts", label: "Contacts", icon: I.contacts },
     { key: "activity", label: "Activity", icon: I.activity },
     { key: "profiles", label: "Profiles", icon: I.user },
     ...(isPrincipal ? [{ key: "audit", label: "Audit log", icon: I.shield }] : []),
@@ -172,7 +173,7 @@ export default function App() {
   const myQueue = items.filter((i) => ownerOf(i) === me).length;
   const titles = {
     dashboard: "Dashboard", items: "All Items", new: "New Item", projects: "Projects",
-    activity: "Activity", profiles: "Profiles", audit: "Audit log",
+    activity: "Activity", profiles: "Profiles", audit: "Audit log", contacts: "Contacts",
     detail: <span><span className="crumb">All Items › </span>Item Detail</span>,
   };
 
@@ -182,7 +183,7 @@ export default function App() {
       <aside className={"sidebar" + (navOpen ? " open" : "")}>
         <div className="brand">
           <div className="logo"><img src={markUrl} alt="Ivest" /></div>
-          <div className="name">Interactive GTD<small>Stage 1</small></div>
+          <div className="name">Interactive GTD<small>Ivest</small></div>
         </div>
         <nav className="nav">
           <div className="sect">Workspace</div>
@@ -230,6 +231,7 @@ export default function App() {
           {view === "detail" && current && <ItemDetail ctx={ctx} item={current} />}
           {view === "new" && <NewItem ctx={ctx} />}
           {view === "projects" && <Projects ctx={ctx} />}
+          {view === "contacts" && <Contacts ctx={ctx} />}
           {view === "activity" && <Activity ctx={ctx} />}
           {view === "profiles" && <Profiles ctx={ctx} />}
           {view === "audit" && isPrincipal && <Audit ctx={ctx} />}
@@ -729,6 +731,59 @@ function Projects({ ctx }) {
               <div style={{ flex: 1 }} />
               <button className="btn ghost sm" onClick={() => rename(p)}>Rename</button>
               {isPrincipal && <button className="btn danger sm" onClick={() => del(p)}>Delete</button>}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+/* ============================================================
+   Contacts (same rights model as Projects)
+   ============================================================ */
+function Contacts({ ctx }) {
+  const { contacts, items, isPrincipal } = ctx;
+  const add = async () => {
+    const name = window.prompt("Contact name:");
+    if (!name || !name.trim()) return;
+    const email = window.prompt("Email (optional):") || "";
+    const { error } = await api.createContact(name.trim(), email.trim());
+    if (error) { ctx.notify("Couldn't add: " + error.message); return; }
+    await ctx.reload(); ctx.notify("Contact added");
+  };
+  const edit = async (c) => {
+    const name = window.prompt("Contact name:", c.name);
+    if (name === null) return;
+    const email = window.prompt("Email:", c.email || "");
+    if (email === null) return;
+    const { error } = await api.updateContact(c.id, { name: name.trim() || c.name, email: email.trim() || null });
+    if (error) { ctx.notify("Couldn't save: " + error.message); return; }
+    await ctx.reload(); ctx.notify("Contact updated");
+  };
+  const del = async (c) => {
+    if (!window.confirm(`Delete the contact "${c.name}"? Items are kept but lose this contact tag.`)) return;
+    const { error } = await api.deleteContact(c.id);
+    if (error) { ctx.notify("Couldn't delete: " + error.message); return; }
+    await ctx.reload(); ctx.notify("Contact deleted");
+  };
+  return (
+    <>
+      <div className="page-head"><div><h2>Contacts</h2><div className="sub">People &amp; companies your items relate to</div></div><div className="spacer" />
+        <button className="btn primary" onClick={add}><Ico d={I.add} /> New contact</button></div>
+      <div className="group">
+        {contacts.length === 0 && <div className="empty">No contacts yet.</div>}
+        {contacts.map((c) => {
+          const n = items.filter((i) => i.contact_id === c.id && i.status !== "closed").length;
+          return (
+            <div key={c.id} className="proj-row">
+              <span className="pc" style={{ background: "#94A3B8", borderRadius: "50%" }} />
+              <b>{c.name}</b>
+              {c.email && <span className="badge-mini">{c.email}</span>}
+              <span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
+              <div style={{ flex: 1 }} />
+              <button className="btn ghost sm" onClick={() => edit(c)}>Edit</button>
+              {isPrincipal && <button className="btn danger sm" onClick={() => del(c)}>Delete</button>}
             </div>
           );
         })}
