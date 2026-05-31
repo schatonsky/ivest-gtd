@@ -76,6 +76,7 @@ export default function App() {
   const [currentId, setCurrentId] = useState(null);
   const [toast, setToast] = useState("");
   const [navOpen, setNavOpen] = useState(false);
+  const [itemsStatus, setItemsStatus] = useState("all");
   const toastTimer = useRef(null);
 
   function notify(msg) {
@@ -143,8 +144,9 @@ export default function App() {
     me, isPrincipal, profile, profiles, items, comments, projects, contacts, activity,
     notify, reload: loadData,
     open: (id) => { setCurrentId(id); setView("detail"); },
-    goItems: () => { setCurrentId(null); setView("items"); },
+    goItems: (status) => { setCurrentId(null); setItemsStatus(status || "all"); setView("items"); },
     goNew: () => { setCurrentId(null); setView("new"); },
+    initialStatus: itemsStatus,
   };
 
   const NAV = [
@@ -265,8 +267,11 @@ function Group({ title, icon, arr, ctx, empty }) {
 function Dashboard({ ctx }) {
   const { items, me, isPrincipal, profile } = ctx;
   const by = (s) => items.filter((i) => i.status === s);
-  const Stat = ({ n, l, alert }) => (
-    <div className={"stat " + (alert && n ? "alert" : "")}><div className="n">{n}</div><div className="l">{l}</div></div>
+  const Stat = ({ n, l, alert, to }) => (
+    <div className={"stat " + (alert && n ? "alert " : "") + (to ? "clickable" : "")}
+      onClick={to ? () => ctx.goItems(to) : undefined}>
+      <div className="n">{n}</div><div className="l">{l}</div>
+    </div>
   );
   return (
     <>
@@ -285,10 +290,10 @@ function Dashboard({ ctx }) {
       {isPrincipal ? (
         <>
           <div className="cards">
-            <Stat n={by("awaiting_principal").length} l="Need my answer" alert />
-            <Stat n={by("pending_review").length} l="To review" alert />
-            <Stat n={by("open").length + by("in_progress").length} l="With Nicole" />
-            <Stat n={by("closed").length} l="Closed" />
+            <Stat n={by("awaiting_principal").length} l="Need my answer" alert to="awaiting_principal" />
+            <Stat n={by("pending_review").length} l="To review" alert to="pending_review" />
+            <Stat n={by("open").length + by("in_progress").length} l="With Nicole" to="in_progress" />
+            <Stat n={by("closed").length} l="Closed" to="closed" />
           </div>
           <Group title="Needs my answer" icon={I.flag} arr={by("awaiting_principal")} ctx={ctx} empty="Nothing waiting on you right now." />
           <Group title="To review" icon={I.check} arr={by("pending_review")} ctx={ctx} empty="Nothing to review right now." />
@@ -297,10 +302,10 @@ function Dashboard({ ctx }) {
       ) : (
         <>
           <div className="cards">
-            <Stat n={by("open").length} l="To start" alert />
-            <Stat n={by("in_progress").length} l="In progress" />
-            <Stat n={by("follow_up").length} l="Follow-ups" alert />
-            <Stat n={by("awaiting_principal").length} l="Waiting on Stephane" />
+            <Stat n={by("open").length} l="To start" alert to="open" />
+            <Stat n={by("in_progress").length} l="In progress" to="in_progress" />
+            <Stat n={by("follow_up").length} l="Follow-ups" alert to="follow_up" />
+            <Stat n={by("awaiting_principal").length} l="Waiting on Stephane" to="awaiting_principal" />
           </div>
           <Group title="To do" icon={I.circle} arr={by("open")} ctx={ctx} empty="Nothing new assigned." />
           <Group title="In progress" icon={I.dots} arr={by("in_progress")} ctx={ctx} empty="Nothing in progress." />
@@ -317,7 +322,7 @@ function Dashboard({ ctx }) {
    ============================================================ */
 function ItemsList({ ctx }) {
   const { items, projects, contacts } = ctx;
-  const [f, setF] = useState({ status: "all", project: "all", contact: "all", source: "all", q: "" });
+  const [f, setF] = useState({ status: ctx.initialStatus || "all", project: "all", contact: "all", source: "all", q: "" });
   let list = items.slice();
   if (f.status !== "all") list = list.filter((i) => i.status === f.status);
   if (f.project !== "all") list = list.filter((i) => i.project_id === f.project);
