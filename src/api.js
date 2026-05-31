@@ -35,6 +35,10 @@ export async function createProject(name, color) {
 export async function renameProject(id, name) {
   return supabase.from("projects").update({ name }).eq("id", id);
 }
+export async function deleteProject(id) {
+  // action_items.project_id is ON DELETE SET NULL — items are kept, just unassigned
+  return supabase.from("projects").delete().eq("id", id);
+}
 
 // ---------- items ----------
 export async function listItems() {

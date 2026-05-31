@@ -691,6 +691,12 @@ function Projects({ ctx }) {
     const name = window.prompt("Rename project:", p.name);
     if (name && name.trim()) { await api.renameProject(p.id, name.trim()); await ctx.reload(); }
   };
+  const del = async (p) => {
+    if (!window.confirm(`Delete the project "${p.name}"? Its items are kept but will no longer be tagged with this project.`)) return;
+    const { error } = await api.deleteProject(p.id);
+    if (error) { ctx.notify("Couldn't delete: " + error.message); return; }
+    await ctx.reload(); ctx.notify("Project deleted");
+  };
   return (
     <>
       <div className="page-head"><div><h2>Projects</h2><div className="sub">Managed by Stephane</div></div><div className="spacer" />
@@ -704,6 +710,7 @@ function Projects({ ctx }) {
               <span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
               <div style={{ flex: 1 }} />
               <button className="btn ghost sm" onClick={() => rename(p)}>Rename</button>
+              <button className="btn danger sm" onClick={() => del(p)}>Delete</button>
             </div>
           );
         })}
