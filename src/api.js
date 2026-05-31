@@ -29,6 +29,25 @@ export async function listProjects() {
 export async function updateProjectOrder(id, order) {
   return supabase.from("projects").update({ sort_order: order }).eq("id", id);
 }
+
+// ---------- locations ----------
+export async function listLocations() {
+  const { data } = await supabase.from("locations").select("*")
+    .order("sort_order", { ascending: true, nullsFirst: false }).order("name");
+  return data || [];
+}
+export async function createLocation(name) {
+  return supabase.from("locations").insert({ name }).select().single();
+}
+export async function updateLocation(id, fields) {
+  return supabase.from("locations").update(fields).eq("id", id);
+}
+export async function deleteLocation(id) {
+  return supabase.from("locations").delete().eq("id", id);
+}
+export async function updateLocationOrder(id, order) {
+  return supabase.from("locations").update({ sort_order: order }).eq("id", id);
+}
 export async function updateContactOrder(id, order) {
   return supabase.from("contacts").update({ sort_order: order }).eq("id", id);
 }
@@ -141,6 +160,16 @@ export async function uploadAvatar(profile, file) {
 }
 export async function removeAvatar(profile) {
   return supabase.from("profiles").update({ avatar_url: null }).eq("id", profile.id);
+}
+
+// ---------- private notes (Principal only; RLS-protected) ----------
+export async function getPrivateNote(itemId) {
+  const { data } = await supabase.from("private_notes").select("body").eq("action_item_id", itemId).maybeSingle();
+  return data ? data.body : "";
+}
+export async function savePrivateNote(itemId, body) {
+  return supabase.from("private_notes")
+    .upsert({ action_item_id: itemId, body, updated_at: new Date().toISOString() }, { onConflict: "action_item_id" });
 }
 
 // ---------- access / audit log ----------
