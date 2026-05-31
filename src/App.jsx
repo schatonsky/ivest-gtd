@@ -475,6 +475,9 @@ function ItemDetail({ ctx, item }) {
   const statusOptions = isPrincipal ? Object.keys(STATES) : Object.keys(STATES).filter((s) => s !== "closed");
   const canSetStatus = isPrincipal || item.status !== "closed";
   const setStatusDirect = (to) => { if (to !== item.status) doStatus(to, "Status changed to " + STATES[to].label); };
+  // for email items the body shows in the attached card — only show the description if it differs (i.e. you've added notes)
+  const showDesc = item.description && item.description.trim() &&
+    !(item.source === "email" && item.description.trim() === (item.email_body || "").trim());
 
   let banner = null;
   if (item.status === "awaiting_principal")
@@ -559,7 +562,7 @@ function ItemDetail({ ctx, item }) {
                 )}
                 {actions}
               </div>
-              {item.description && <div className="desc">{item.description}</div>}
+              {showDesc && <div className="desc">{item.description}</div>}
             </>
           )}
           {item.source === "email" && <EmailAttachment item={item} />}
