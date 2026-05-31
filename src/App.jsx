@@ -717,6 +717,14 @@ function NewItem({ ctx }) {
    ============================================================ */
 function Projects({ ctx }) {
   const { projects, items, isPrincipal } = ctx;
+  const [sort, setSort] = useState("custom");
+  const openCount = (id) => items.filter((i) => i.project_id === id && i.status !== "closed").length;
+  const reorder = async (arr) => { await Promise.all(arr.map((p, i) => api.updateProjectOrder(p.id, i + 1))); await ctx.reload(); };
+  const move = (i, dir) => {
+    const arr = projects.slice(); const j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t; reorder(arr);
+  };
   const add = async () => {
     const name = window.prompt("New project name:");
     if (!name || !name.trim()) return;
@@ -737,20 +745,36 @@ function Projects({ ctx }) {
   return (
     <>
       <div className="page-head"><div><h2>Projects</h2><div className="sub">Group action items by project</div></div><div className="spacer" />
+        <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ marginRight: 8 }}>
+          <option value="custom">Custom order</option>
+          <option value="name">Name A–Z</option>
+          <option value="count">Most items</option>
+        </select>
         <button className="btn primary" onClick={add}><Ico d={I.add} /> New project</button></div>
       <div className="group">
-        {projects.map((p) => {
-          const n = items.filter((i) => i.project_id === p.id && i.status !== "closed").length;
-          return (
-            <div key={p.id} className="proj-row">
-              <span className="pc" style={{ background: p.color }} /><b>{p.name}</b>
-              <span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
-              <div style={{ flex: 1 }} />
-              <button className="btn ghost sm" onClick={() => rename(p)}>Rename</button>
-              {isPrincipal && <button className="btn danger sm" onClick={() => del(p)}>Delete</button>}
-            </div>
-          );
-        })}
+        {(() => {
+          let list = projects.slice();
+          if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name));
+          else if (sort === "count") list.sort((a, b) => openCount(b.id) - openCount(a.id));
+          return list.map((p, idx) => {
+            const n = openCount(p.id);
+            return (
+              <div key={p.id} className="proj-row">
+                {sort === "custom" && (
+                  <span className="reorder">
+                    <button className="btn ghost sm" disabled={idx === 0} onClick={() => move(idx, -1)} title="Move up">↑</button>
+                    <button className="btn ghost sm" disabled={idx === list.length - 1} onClick={() => move(idx, 1)} title="Move down">↓</button>
+                  </span>
+                )}
+                <span className="pc" style={{ background: p.color }} /><b>{p.name}</b>
+                <span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
+                <div style={{ flex: 1 }} />
+                <button className="btn ghost sm" onClick={() => rename(p)}>Rename</button>
+                {isPrincipal && <button className="btn danger sm" onClick={() => del(p)}>Delete</button>}
+              </div>
+            );
+          });
+        })()}
       </div>
     </>
   );
@@ -761,6 +785,14 @@ function Projects({ ctx }) {
    ============================================================ */
 function Contacts({ ctx }) {
   const { contacts, items, isPrincipal } = ctx;
+  const [sort, setSort] = useState("custom");
+  const openCount = (id) => items.filter((i) => i.contact_id === id && i.status !== "closed").length;
+  const reorder = async (arr) => { await Promise.all(arr.map((c, i) => api.updateContactOrder(c.id, i + 1))); await ctx.reload(); };
+  const move = (i, dir) => {
+    const arr = contacts.slice(); const j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t; reorder(arr);
+  };
   const add = async () => {
     const name = window.prompt("Contact name:");
     if (!name || !name.trim()) return;
@@ -787,23 +819,39 @@ function Contacts({ ctx }) {
   return (
     <>
       <div className="page-head"><div><h2>Contacts</h2><div className="sub">People &amp; companies your items relate to</div></div><div className="spacer" />
+        <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ marginRight: 8 }}>
+          <option value="custom">Custom order</option>
+          <option value="name">Name A–Z</option>
+          <option value="count">Most items</option>
+        </select>
         <button className="btn primary" onClick={add}><Ico d={I.add} /> New contact</button></div>
       <div className="group">
         {contacts.length === 0 && <div className="empty">No contacts yet.</div>}
-        {contacts.map((c) => {
-          const n = items.filter((i) => i.contact_id === c.id && i.status !== "closed").length;
-          return (
-            <div key={c.id} className="proj-row">
-              <span className="pc" style={{ background: "#94A3B8", borderRadius: "50%" }} />
-              <b>{c.name}</b>
-              {c.email && <span className="badge-mini">{c.email}</span>}
-              <span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
-              <div style={{ flex: 1 }} />
-              <button className="btn ghost sm" onClick={() => edit(c)}>Edit</button>
-              {isPrincipal && <button className="btn danger sm" onClick={() => del(c)}>Delete</button>}
-            </div>
-          );
-        })}
+        {(() => {
+          let list = contacts.slice();
+          if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name));
+          else if (sort === "count") list.sort((a, b) => openCount(b.id) - openCount(a.id));
+          return list.map((c, idx) => {
+            const n = openCount(c.id);
+            return (
+              <div key={c.id} className="proj-row">
+                {sort === "custom" && (
+                  <span className="reorder">
+                    <button className="btn ghost sm" disabled={idx === 0} onClick={() => move(idx, -1)} title="Move up">↑</button>
+                    <button className="btn ghost sm" disabled={idx === list.length - 1} onClick={() => move(idx, 1)} title="Move down">↓</button>
+                  </span>
+                )}
+                <span className="pc" style={{ background: "#94A3B8", borderRadius: "50%" }} />
+                <b>{c.name}</b>
+                {c.email && <span className="badge-mini">{c.email}</span>}
+                <span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
+                <div style={{ flex: 1 }} />
+                <button className="btn ghost sm" onClick={() => edit(c)}>Edit</button>
+                {isPrincipal && <button className="btn danger sm" onClick={() => del(c)}>Delete</button>}
+              </div>
+            );
+          });
+        })()}
       </div>
     </>
   );

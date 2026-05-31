@@ -22,11 +22,19 @@ export async function signOut() {
 
 // ---------- reference data ----------
 export async function listProjects() {
-  const { data } = await supabase.from("projects").select("*").order("created_at");
+  const { data } = await supabase.from("projects").select("*")
+    .order("sort_order", { ascending: true, nullsFirst: false }).order("name");
   return data || [];
 }
+export async function updateProjectOrder(id, order) {
+  return supabase.from("projects").update({ sort_order: order }).eq("id", id);
+}
+export async function updateContactOrder(id, order) {
+  return supabase.from("contacts").update({ sort_order: order }).eq("id", id);
+}
 export async function listContacts() {
-  const { data } = await supabase.from("contacts").select("*").order("name");
+  const { data } = await supabase.from("contacts").select("*")
+    .order("sort_order", { ascending: true, nullsFirst: false }).order("name");
   return data || [];
 }
 export async function createContact(name, email) {
