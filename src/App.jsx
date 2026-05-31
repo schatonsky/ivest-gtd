@@ -471,6 +471,11 @@ function ItemDetail({ ctx, item }) {
   }
   if (item.status === "closed" && isPrincipal) actions.push(<button key="re" className="btn" disabled={busy} onClick={() => doStatus("follow_up", "Reopened")}><Ico d={I.loop} /> Reopen</button>);
 
+  // direct status override (Nicole can't set/leave "closed")
+  const statusOptions = isPrincipal ? Object.keys(STATES) : Object.keys(STATES).filter((s) => s !== "closed");
+  const canSetStatus = isPrincipal || item.status !== "closed";
+  const setStatusDirect = (to) => { if (to !== item.status) doStatus(to, "Status changed to " + STATES[to].label); };
+
   let banner = null;
   if (item.status === "awaiting_principal")
     banner = <div className="banner warn"><Ico d={I.flag} /> A question was raised — answer it below to resume the work.</div>;
@@ -548,7 +553,18 @@ function ItemDetail({ ctx, item }) {
             </>
           )}
           {item.source === "email" && <EmailAttachment item={item} />}
-          {!editing && <div className="actions">{actions.length ? actions : <span className="muted">No actions for you in this state.</span>}</div>}
+          {!editing && (
+            <div className="actions">
+              {canSetStatus && (
+                <label className="status-set">Status:
+                  <select value={item.status} disabled={busy} onChange={(e) => setStatusDirect(e.target.value)}>
+                    {statusOptions.map((s) => <option key={s} value={s}>{STATES[s].label}</option>)}
+                  </select>
+                </label>
+              )}
+              {actions}
+            </div>
+          )}
 
           <div className="thread">
             <h4><Ico d={I.chat} /> Conversation</h4>
