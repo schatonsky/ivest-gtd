@@ -268,10 +268,15 @@ function ItemRow({ it, ctx }) {
   );
 }
 function Group({ title, icon, arr, ctx, empty }) {
+  const [open, setOpen] = useState(arr.length > 0); // empty categories start collapsed (compact)
   return (
     <div className="group">
-      <div className="group-head"><span className="gi"><Ico d={icon} /></span>{title}<span className="count">{arr.length}</span></div>
-      {arr.length ? arr.map((it) => <ItemRow key={it.id} it={it} ctx={ctx} />) : <div className="empty">{empty}</div>}
+      <div className="group-head group-toggle" onClick={() => setOpen(!open)}>
+        <span className="gi"><Ico d={icon} /></span>{title}<span className="count">{arr.length}</span>
+        <div style={{ flex: 1 }} />
+        <span className={"twist" + (open ? " open" : "")}><Ico d={I.chev} /></span>
+      </div>
+      {open && (arr.length ? arr.map((it) => <ItemRow key={it.id} it={it} ctx={ctx} />) : <div className="empty">{empty}</div>)}
     </div>
   );
 }
