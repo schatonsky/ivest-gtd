@@ -117,6 +117,17 @@ export default function App() {
     setContacts(ct); setActivity(ac); setProfiles(pf);
   }
 
+  // record an access session + heartbeat while signed in (for the audit log)
+  useEffect(() => {
+    if (!profile) return;
+    let sid = null, iv = null;
+    (async () => {
+      try { sid = await api.startSession(profile.user_key); } catch {}
+      iv = setInterval(() => { api.touchSession(sid); }, 60000);
+    })();
+    return () => { if (iv) clearInterval(iv); api.touchSession(sid); };
+  }, [profile && profile.id]);
+
   // when logged in: load profile + data, subscribe to realtime
   useEffect(() => {
     if (!session) { setProfile(null); return; }
@@ -156,11 +167,12 @@ export default function App() {
     { key: "projects", label: "Projects", icon: I.projects },
     { key: "activity", label: "Activity", icon: I.activity },
     { key: "profiles", label: "Profiles", icon: I.user },
+    ...(isPrincipal ? [{ key: "audit", label: "Audit log", icon: I.shield }] : []),
   ];
   const myQueue = items.filter((i) => ownerOf(i) === me).length;
   const titles = {
     dashboard: "Dashboard", items: "All Items", new: "New Item", projects: "Projects",
-    activity: "Activity", profiles: "Profiles",
+    activity: "Activity", profiles: "Profiles", audit: "Audit log",
     detail: <span><span className="crumb">All Items › </span>Item Detail</span>,
   };
 
@@ -220,6 +232,7 @@ export default function App() {
           {view === "projects" && <Projects ctx={ctx} />}
           {view === "activity" && <Activity ctx={ctx} />}
           {view === "profiles" && <Profiles ctx={ctx} />}
+          {view === "audit" && isPrincipal && <Audit ctx={ctx} />}
         </div>
       </div>
 
@@ -742,6 +755,58 @@ function Activity({ ctx }) {
                 <div className="meta">{it ? it.title : "—"}<span className="muted">{who} · {ago(a.created_at)}</span></div></div>
               {it && <StateBadge s={it.status} />}
               <span className="chev"><Ico d={I.chev} /></span>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+/* ============================================================
+   Audit log (Principal only): access sessions + activity
+   ============================================================ */
+function Audit({ ctx }) {
+  const { profiles, items, activity } = ctx;
+  const [sessions, setSessions] = useState(null);
+  useEffect(() => { api.listSessions().then(setSessions); }, []);
+  const fmtDur = (a, b) => {
+    const min = Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000));
+    if (min < 1) return "under a minute";
+    if (min < 60) return min + " min";
+    const h = Math.floor(min / 60);
+    return h + "h " + (min % 60) + "m";
+  };
+  return (
+    <>
+      <div className="page-head"><div><h2>Audit log</h2><div className="sub">Access sessions and activity — visible to you only</div></div></div>
+
+      <div className="group">
+        <div className="group-head"><span className="gi"><Ico d={I.clock} /></span>Access sessions<span className="count">{sessions ? sessions.length : "…"}</span></div>
+        {sessions === null && <div className="empty">Loading…</div>}
+        {sessions && sessions.length === 0 && <div className="empty">No sessions recorded yet.</div>}
+        {sessions && sessions.map((s) => (
+          <div key={s.id} className="item" style={{ cursor: "default" }}>
+            <Avatar k={s.user_key} size={30} profiles={profiles} />
+            <div className="grow">
+              <div className="ttl">{profileFor(s.user_key, profiles).name}</div>
+              <div className="meta">{new Date(s.started_at).toLocaleString()}<span className="muted">active {fmtDur(s.started_at, s.last_seen_at)}</span></div>
+            </div>
+            <span className="muted">{ago(s.last_seen_at)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="group">
+        <div className="group-head"><span className="gi"><Ico d={I.activity} /></span>Activity<span className="count">{activity.length}</span></div>
+        {activity.map((a) => {
+          const it = items.find((i) => i.id === a.action_item_id);
+          const who = a.actor === "system" ? "System" : profileFor(a.actor, profiles).name;
+          return (
+            <div key={a.id} className="item" onClick={() => it && ctx.open(it.id)}>
+              <div className="grow"><div className="ttl">{a.change}</div>
+                <div className="meta">{it ? it.title : "—"}<span className="muted">{who} · {ago(a.created_at)}</span></div></div>
+              {it && <StateBadge s={it.status} />}
             </div>
           );
         })}

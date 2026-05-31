@@ -125,6 +125,22 @@ export async function removeAvatar(profile) {
   return supabase.from("profiles").update({ avatar_url: null }).eq("id", profile.id);
 }
 
+// ---------- access / audit log ----------
+export async function startSession(userKey) {
+  const id = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : null;
+  if (!id) return null;
+  await supabase.from("access_log").insert({ id, user_key: userKey });
+  return id;
+}
+export async function touchSession(id) {
+  if (!id) return;
+  return supabase.from("access_log").update({ last_seen_at: new Date().toISOString() }).eq("id", id);
+}
+export async function listSessions() {
+  const { data } = await supabase.from("access_log").select("*").order("started_at", { ascending: false }).limit(100);
+  return data || [];
+}
+
 // ---------- realtime ----------
 // Fires `onChange` whenever any tracked table changes, so the UI can refetch.
 export function subscribe(onChange) {
