@@ -396,6 +396,16 @@ function ItemDetail({ ctx, item }) {
     const note = window.prompt("What follow-up or change do you need from Nicole?");
     run(async () => { await api.requestFollowup(item, note || "", me); ctx.notify("Sent back to Nicole as follow-up"); });
   };
+  const doDelete = async () => {
+    if (!window.confirm("Delete this action item permanently? Its comments and history are removed too. This can't be undone.")) return;
+    setBusy(true);
+    const { error } = await api.deleteItem(item.id);
+    setBusy(false);
+    if (error) { ctx.notify("Couldn't delete: " + error.message); return; }
+    await ctx.reload();
+    ctx.notify("Item deleted");
+    ctx.goItems();
+  };
   const startEdit = () => {
     setTitleDraft(item.title);
     setDescDraft(item.description || "");
@@ -466,6 +476,7 @@ function ItemDetail({ ctx, item }) {
             <StateBadge s={item.status} /><Prio p={item.priority} />
             <div style={{ flex: 1 }} />
             {!editing && <button className="btn ghost sm" onClick={startEdit}><Ico d={I.pencil} /> Edit</button>}
+            {!editing && isPrincipal && <button className="btn danger sm" disabled={busy} onClick={doDelete}>Delete</button>}
           </div>
           {editing ? (
             <div style={{ marginTop: 12 }}>

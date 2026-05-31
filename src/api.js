@@ -54,6 +54,11 @@ export async function updateItem(id, fields) {
   return supabase.from("action_items").update(fields).eq("id", id);
 }
 
+export async function deleteItem(id) {
+  // comments + activity_log are removed automatically via ON DELETE CASCADE
+  return supabase.from("action_items").delete().eq("id", id);
+}
+
 export async function createItem(fields, actorKey) {
   const { data, error } = await supabase.from("action_items")
     .insert({ ...fields, source: "manual", status: "open" })

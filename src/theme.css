@@ -74,6 +74,8 @@ button:active{transform:translateY(.5px)}
 .btn.amber:hover{background:var(--amber-soft)}
 .btn.ghost{background:none;border-color:transparent;box-shadow:none;color:var(--slate)}
 .btn.ghost:hover{background:#F2F3F5;color:var(--ink)}
+.btn.danger{background:#fff;border-color:#F8C9CF;color:#BE123C}
+.btn.danger:hover{background:#FFE4E6;border-color:#F3B0BA}
 .btn.sm{padding:6px 11px;font-size:12.5px}
 .btn:disabled{opacity:.55;cursor:default}
 
@@ -246,7 +248,7 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 [data-theme="dark"] .group-head .count{background:#222A36;color:var(--slate)}
 [data-theme="dark"] .item:hover{background:#1B212C}
 [data-theme="dark"] .tag{background:#222A36;color:var(--body)}
-[data-theme="dark"] select,[data-theme="dark"] input,[data-theme="dark"] textarea{background:#10151E;color:var(--ink);border-color:var(--line-2)}
+[data-theme="dark"] select,[data-theme="dark"] input,[data-theme="dark"] textarea{background-color:#10151E;color:var(--ink);border-color:var(--line-2)}
 [data-theme="dark"] .msg .body{background:#1B212C;border-color:var(--line)}
 [data-theme="dark"] .msg.question .body{background:rgba(224,168,46,.12);border-color:rgba(224,168,46,.34)}
 [data-theme="dark"] .msg.answer .body{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.34)}
@@ -264,5 +266,5 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 [data-theme="dark"] .banner.review{background:rgba(159,92,240,.16);border-color:rgba(159,92,240,.4);color:#CBA8F6}
 [data-theme="dark"] .banner.info{background:rgba(81,128,247,.16);border-color:rgba(81,128,247,.4);color:#A6BDFF}
 [data-theme="dark"] .banner.wait{background:#1B212C;border-color:var(--line-2);color:var(--slate)}
-[data-theme="dark"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238B95A4' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+[data-theme="dark"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238B95A4' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
 [data-theme="dark"] .login .err{background:rgba(244,63,94,.14);border-color:rgba(244,63,94,.4);color:#F79DAC}
