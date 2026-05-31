@@ -549,22 +549,20 @@ function ItemDetail({ ctx, item }) {
               <h3>{item.title}</h3>
               <div className="muted">Created by {profileFor(item.created_by, profiles).name} · {ago(item.created_at)}</div>
               {banner}
+              <div className="actions">
+                {canSetStatus && (
+                  <label className="status-set">Status:
+                    <select value={item.status} disabled={busy} onChange={(e) => setStatusDirect(e.target.value)}>
+                      {statusOptions.map((s) => <option key={s} value={s}>{STATES[s].label}</option>)}
+                    </select>
+                  </label>
+                )}
+                {actions}
+              </div>
               {item.description && <div className="desc">{item.description}</div>}
             </>
           )}
           {item.source === "email" && <EmailAttachment item={item} />}
-          {!editing && (
-            <div className="actions">
-              {canSetStatus && (
-                <label className="status-set">Status:
-                  <select value={item.status} disabled={busy} onChange={(e) => setStatusDirect(e.target.value)}>
-                    {statusOptions.map((s) => <option key={s} value={s}>{STATES[s].label}</option>)}
-                  </select>
-                </label>
-              )}
-              {actions}
-            </div>
-          )}
 
           <div className="thread">
             <h4><Ico d={I.chat} /> Conversation</h4>
