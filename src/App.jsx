@@ -363,6 +363,10 @@ function ItemDetail({ ctx, item }) {
   const [editing, setEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [descDraft, setDescDraft] = useState("");
+  const [projDraft, setProjDraft] = useState("");
+  const [contactDraft, setContactDraft] = useState("");
+  const [prioDraft, setPrioDraft] = useState("");
+  const [dueDraft, setDueDraft] = useState("");
   const answerRef = useRef(null);
   const owner = ownerOf(item);
   const itemComments = ctx.comments.filter((c) => c.action_item_id === item.id);
@@ -392,11 +396,26 @@ function ItemDetail({ ctx, item }) {
     const note = window.prompt("What follow-up or change do you need from Nicole?");
     run(async () => { await api.requestFollowup(item, note || "", me); ctx.notify("Sent back to Nicole as follow-up"); });
   };
-  const startEdit = () => { setTitleDraft(item.title); setDescDraft(item.description || ""); setEditing(true); };
+  const startEdit = () => {
+    setTitleDraft(item.title);
+    setDescDraft(item.description || "");
+    setProjDraft(item.project_id || "");
+    setContactDraft(item.contact_id || "");
+    setPrioDraft(item.priority || "");
+    setDueDraft(item.due_date || "");
+    setEditing(true);
+  };
   const saveEdit = () => {
     if (!titleDraft.trim()) { ctx.notify("Title can't be empty"); return; }
     run(async () => {
-      await api.updateItem(item.id, { title: titleDraft.trim(), description: descDraft });
+      await api.updateItem(item.id, {
+        title: titleDraft.trim(),
+        description: descDraft,
+        project_id: projDraft || null,
+        contact_id: contactDraft || null,
+        priority: prioDraft || null,
+        due_date: dueDraft || null,
+      });
       await api.logActivity(item.id, me, "Edited details");
       setEditing(false); ctx.notify("Item updated");
     });
@@ -454,6 +473,35 @@ function ItemDetail({ ctx, item }) {
               <input type="text" style={{ width: "100%" }} value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} placeholder="A clear task name…" />
               <label className="fld" style={{ marginTop: 14 }}>Description</label>
               <textarea value={descDraft} onChange={(e) => setDescDraft(e.target.value)} placeholder="Details / context…" />
+              <div className="form-grid" style={{ marginTop: 14 }}>
+                <div>
+                  <label className="fld">Project</label>
+                  <select value={projDraft} onChange={(e) => setProjDraft(e.target.value)}>
+                    <option value="">— none —</option>
+                    {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="fld">Contact</label>
+                  <select value={contactDraft} onChange={(e) => setContactDraft(e.target.value)}>
+                    <option value="">— none —</option>
+                    {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="fld">Priority</label>
+                  <select value={prioDraft} onChange={(e) => setPrioDraft(e.target.value)}>
+                    <option value="">— blank —</option>
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="fld">Due date</label>
+                  <input type="date" value={dueDraft} onChange={(e) => setDueDraft(e.target.value)} />
+                </div>
+              </div>
               <div className="actions">
                 <button className="btn primary" disabled={busy} onClick={saveEdit}><Ico d={I.check} /> Save</button>
                 <button className="btn ghost" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
