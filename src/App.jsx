@@ -27,6 +27,10 @@ function profileFor(key, profiles) {
 function Ico({ d }) {
   return <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: d }} />;
 }
+// Only allow safe link schemes (prevents javascript: etc. from a crafted record)
+function safeUrl(u) {
+  return (typeof u === "string" && /^(https:\/\/|message:)/i.test(u.trim())) ? u.trim() : null;
+}
 function Avatar({ k, size = 30, profiles }) {
   const p = profileFor(k, profiles);
   if (p.avatar_url)
@@ -571,7 +575,7 @@ function ItemDetail({ ctx, item }) {
           <div className="kv"><span className="k">Assigned to</span><span className="v">{profileFor(item.assigned_to, profiles).name}</span></div>
           <div className="kv"><span className="k">Project</span><span className="v">{proj ? <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span> : "—"}</span></div>
           <div className="kv"><span className="k">Contact</span><span className="v">{contact ? contact.name : "—"}</span></div>
-          <div className="kv"><span className="k">Source</span><span className="v">{item.source === "email" ? (item.source_email_url ? <a href={item.source_email_url} target="_blank" rel="noreferrer">Open in Mail ↗</a> : "Email") : "Created manually"}</span></div>
+          <div className="kv"><span className="k">Source</span><span className="v">{item.source === "email" ? (safeUrl(item.source_email_url) ? <a href={safeUrl(item.source_email_url)} target="_blank" rel="noreferrer">Open in Mail ↗</a> : "Email") : "Created manually"}</span></div>
           <div className="kv"><span className="k">Priority</span><span className="v">{item.priority || "—"}</span></div>
           <div className="kv"><span className="k">Due</span><span className="v">{item.due_date || "—"}</span></div>
           <div className="act-feed">
@@ -600,8 +604,8 @@ function EmailAttachment({ item }) {
             From {item.email_from || "—"}{when ? " · " + when : ""}
           </div>
         </div>
-        {item.source_email_url && (
-          <a className="btn ghost sm" href={item.source_email_url} target="_blank" rel="noreferrer">Open in Mail ↗</a>
+        {safeUrl(item.source_email_url) && (
+          <a className="btn ghost sm" href={safeUrl(item.source_email_url)} target="_blank" rel="noreferrer">Open in Mail ↗</a>
         )}
       </div>
       {body && <div className="email-body">{body}</div>}
