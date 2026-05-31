@@ -560,7 +560,7 @@ function ItemDetail({ ctx, item }) {
           <div className="kv"><span className="k">Assigned to</span><span className="v">{profileFor(item.assigned_to, profiles).name}</span></div>
           <div className="kv"><span className="k">Project</span><span className="v">{proj ? <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span> : "—"}</span></div>
           <div className="kv"><span className="k">Contact</span><span className="v">{contact ? contact.name : "—"}</span></div>
-          <div className="kv"><span className="k">Source</span><span className="v">{item.source === "email" ? (item.source_email_url ? <a href={item.source_email_url} target="_blank" rel="noreferrer">Open thread ↗</a> : "Email") : "Created manually"}</span></div>
+          <div className="kv"><span className="k">Source</span><span className="v">{item.source === "email" ? (item.source_email_url ? <a href={item.source_email_url} target="_blank" rel="noreferrer">Open in Mail ↗</a> : "Email") : "Created manually"}</span></div>
           <div className="kv"><span className="k">Priority</span><span className="v">{item.priority || "—"}</span></div>
           <div className="kv"><span className="k">Due</span><span className="v">{item.due_date || "—"}</span></div>
           <div className="act-feed">
@@ -590,7 +590,7 @@ function EmailAttachment({ item }) {
           </div>
         </div>
         {item.source_email_url && (
-          <a className="btn ghost sm" href={item.source_email_url} target="_blank" rel="noreferrer">Open in Gmail ↗</a>
+          <a className="btn ghost sm" href={item.source_email_url} target="_blank" rel="noreferrer">Open in Mail ↗</a>
         )}
       </div>
       {body && <div className="email-body">{body}</div>}
