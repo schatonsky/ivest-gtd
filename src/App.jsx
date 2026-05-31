@@ -150,8 +150,8 @@ export default function App() {
   const NAV = [
     { key: "dashboard", label: "Dashboard", icon: I.dashboard },
     { key: "items", label: "All Items", icon: I.items },
-    ...(isPrincipal ? [{ key: "new", label: "New Item", icon: I.add }] : []),
-    ...(isPrincipal ? [{ key: "projects", label: "Projects", icon: I.projects }] : []),
+    { key: "new", label: "New Item", icon: I.add },
+    { key: "projects", label: "Projects", icon: I.projects },
     { key: "activity", label: "Activity", icon: I.activity },
     { key: "profiles", label: "Profiles", icon: I.user },
   ];
@@ -214,8 +214,8 @@ export default function App() {
           {view === "dashboard" && <Dashboard ctx={ctx} />}
           {view === "items" && <ItemsList ctx={ctx} />}
           {view === "detail" && current && <ItemDetail ctx={ctx} item={current} />}
-          {view === "new" && isPrincipal && <NewItem ctx={ctx} />}
-          {view === "projects" && isPrincipal && <Projects ctx={ctx} />}
+          {view === "new" && <NewItem ctx={ctx} />}
+          {view === "projects" && <Projects ctx={ctx} />}
           {view === "activity" && <Activity ctx={ctx} />}
           {view === "profiles" && <Profiles ctx={ctx} />}
         </div>
@@ -277,11 +277,9 @@ function Dashboard({ ctx }) {
           <div className="sub">Here's where things stand right now.</div>
         </div>
         <div className="spacer" />
-        {isPrincipal && (
-          <button className="btn primary" onClick={() => ctx.goNew()}>
-            <Ico d={I.add} /> New item
-          </button>
-        )}
+        <button className="btn primary" onClick={() => ctx.goNew()}>
+          <Ico d={I.add} /> New item
+        </button>
       </div>
 
       {isPrincipal ? (
@@ -396,10 +394,10 @@ function ItemDetail({ ctx, item }) {
   const doAsk = () => {
     const q = (comment.trim() || window.prompt("What is your question for Stephane?") || "").trim();
     if (!q) return;
-    run(async () => { await api.askQuestion(item, q); setComment(""); ctx.notify("Question sent to Stephane"); });
+    run(async () => { await api.askQuestion(item, q, me); setComment(""); ctx.notify("Question raised"); });
   };
   const doAnswer = () => { if (!answer.trim()) return; run(async () => {
-    await api.submitAnswer(item, answer.trim()); setAnswer(""); ctx.notify("Answer sent — back with Nicole");
+    await api.submitAnswer(item, answer.trim(), me); setAnswer(""); ctx.notify("Answer sent");
   }); };
   const doFollowup = () => {
     const note = window.prompt("What follow-up or change do you need from Nicole?");
@@ -440,39 +438,32 @@ function ItemDetail({ ctx, item }) {
     });
   };
 
-  // actions per role + state
+  // lifecycle actions — available to both roles, driven by state
   const actions = [];
-  if (!isPrincipal) {
-    if (item.status === "open") actions.push(<button key="s" className="btn green" disabled={busy} onClick={() => doStatus("in_progress", "Started work")}><Ico d={I.check} /> Start work</button>);
-    if (item.status === "in_progress") actions.push(<button key="c" className="btn green" disabled={busy} onClick={() => doStatus("pending_review", "Marked complete")}><Ico d={I.check} /> Mark complete</button>);
-    if (item.status === "follow_up") actions.push(<button key="r" className="btn green" disabled={busy} onClick={() => doStatus("in_progress", "Resumed work")}><Ico d={I.check} /> Resume work</button>);
-    if (["open", "in_progress", "follow_up"].includes(item.status)) actions.push(<button key="q" className="btn amber" disabled={busy} onClick={doAsk}><Ico d={I.flag} /> Ask a question</button>);
-  } else {
-    if (item.status === "pending_review") {
-      actions.push(<button key="ac" className="btn green" disabled={busy} onClick={() => doStatus("closed", "Reviewed & closed")}><Ico d={I.check} /> Accept & close</button>);
-      actions.push(<button key="fu" className="btn amber" disabled={busy} onClick={doFollowup}><Ico d={I.loop} /> Request follow-up</button>);
-    }
-    if (item.status === "closed") actions.push(<button key="re" className="btn" disabled={busy} onClick={() => doStatus("follow_up", "Reopened")}><Ico d={I.loop} /> Reopen</button>);
-    if (item.status === "awaiting_principal") actions.push(<button key="an" className="btn primary" onClick={() => answerRef.current?.focus()}><Ico d={I.pencil} /> Answer below</button>);
+  if (item.status === "open") actions.push(<button key="s" className="btn green" disabled={busy} onClick={() => doStatus("in_progress", "Started work")}><Ico d={I.check} /> Start work</button>);
+  if (item.status === "in_progress") actions.push(<button key="c" className="btn green" disabled={busy} onClick={() => doStatus("pending_review", "Marked complete")}><Ico d={I.check} /> Mark complete</button>);
+  if (item.status === "follow_up") actions.push(<button key="r" className="btn green" disabled={busy} onClick={() => doStatus("in_progress", "Resumed work")}><Ico d={I.check} /> Resume work</button>);
+  if (["open", "in_progress", "follow_up"].includes(item.status)) actions.push(<button key="q" className="btn amber" disabled={busy} onClick={doAsk}><Ico d={I.flag} /> Ask a question</button>);
+  if (item.status === "awaiting_principal") actions.push(<button key="an" className="btn primary" onClick={() => answerRef.current?.focus()}><Ico d={I.pencil} /> Answer below</button>);
+  if (item.status === "pending_review") {
+    if (isPrincipal) actions.push(<button key="ac" className="btn green" disabled={busy} onClick={() => doStatus("closed", "Reviewed & closed")}><Ico d={I.check} /> Accept & close</button>);
+    actions.push(<button key="fu" className="btn amber" disabled={busy} onClick={doFollowup}><Ico d={I.loop} /> Request follow-up</button>);
   }
+  if (item.status === "closed" && isPrincipal) actions.push(<button key="re" className="btn" disabled={busy} onClick={() => doStatus("follow_up", "Reopened")}><Ico d={I.loop} /> Reopen</button>);
 
   let banner = null;
   if (item.status === "awaiting_principal")
-    banner = isPrincipal
-      ? <div className="banner warn"><Ico d={I.flag} /> Nicole asked a question — the item is blocked until you answer below.</div>
-      : <div className="banner wait"><Ico d={I.clock} /> Waiting on Stephane to answer your question.</div>;
+    banner = <div className="banner warn"><Ico d={I.flag} /> A question was raised — answer it below to resume the work.</div>;
   else if (item.status === "pending_review")
-    banner = isPrincipal
-      ? <div className="banner review"><Ico d={I.check} /> Nicole marked this complete — ready for your review.</div>
-      : <div className="banner wait"><Ico d={I.clock} /> Submitted — waiting on Stephane's review.</div>;
-  else if (item.status === "follow_up" && !isPrincipal)
-    banner = <div className="banner warn"><Ico d={I.loop} /> Stephane requested a follow-up — back with you.</div>;
+    banner = <div className="banner review"><Ico d={I.check} /> Marked complete — ready for review.</div>;
+  else if (item.status === "follow_up")
+    banner = <div className="banner warn"><Ico d={I.loop} /> Follow-up requested — resume work to continue.</div>;
   else if (owner && owner !== me && item.status !== "closed")
     banner = <div className="banner info"><Ico d={I.dots} /> This item is currently with {profileFor(owner, profiles).name}.</div>;
 
-  const showAnswer = item.status === "awaiting_principal" && isPrincipal;
+  const showAnswer = item.status === "awaiting_principal";
   const canComment = item.status !== "closed" && !showAnswer;
-  const canAsk = !isPrincipal && ["open", "in_progress", "follow_up"].includes(item.status);
+  const canAsk = ["open", "in_progress", "follow_up"].includes(item.status);
 
   return (
     <>
@@ -688,7 +679,7 @@ function NewItem({ ctx }) {
    Projects (principal only)
    ============================================================ */
 function Projects({ ctx }) {
-  const { projects, items } = ctx;
+  const { projects, items, isPrincipal } = ctx;
   const add = async () => {
     const name = window.prompt("New project name:");
     if (!name || !name.trim()) return;
@@ -708,8 +699,8 @@ function Projects({ ctx }) {
   };
   return (
     <>
-      <div className="page-head"><div><h2>Projects</h2><div className="sub">Managed by Stephane</div></div><div className="spacer" />
-        <button className="btn primary" onClick={add}><Ico d={I.add} /> New project</button></div>
+      <div className="page-head"><div><h2>Projects</h2><div className="sub">{isPrincipal ? "Managed by Stephane" : "Stephane manages the project list"}</div></div><div className="spacer" />
+        {isPrincipal && <button className="btn primary" onClick={add}><Ico d={I.add} /> New project</button>}</div>
       <div className="group">
         {projects.map((p) => {
           const n = items.filter((i) => i.project_id === p.id && i.status !== "closed").length;
@@ -719,7 +710,7 @@ function Projects({ ctx }) {
               <span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
               <div style={{ flex: 1 }} />
               <button className="btn ghost sm" onClick={() => rename(p)}>Rename</button>
-              <button className="btn danger sm" onClick={() => del(p)}>Delete</button>
+              {isPrincipal && <button className="btn danger sm" onClick={() => del(p)}>Delete</button>}
             </div>
           );
         })}

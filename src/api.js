@@ -82,23 +82,23 @@ export async function addComment(itemId, author, body, type = "comment") {
   return supabase.from("comments").insert({ action_item_id: itemId, author, body, type });
 }
 
-// Nicole asks a question → store comment, remember where to resume, block on principal.
-export async function askQuestion(item, body) {
-  await addComment(item.id, "nicole", body, "question");
+// Ask a question → store comment, remember where to resume, await an answer.
+export async function askQuestion(item, body, actor) {
+  await addComment(item.id, actor, body, "question");
   await supabase.from("action_items")
     .update({ status: "awaiting_principal", return_status: item.status })
     .eq("id", item.id);
-  await logActivity(item.id, "nicole", "Question raised");
+  await logActivity(item.id, actor, "Question raised");
 }
 
-// Stephane answers → store answer, resume the remembered state.
-export async function submitAnswer(item, body) {
+// Answer → store answer, resume the remembered state.
+export async function submitAnswer(item, body, actor) {
   const back = item.return_status || "in_progress";
-  await addComment(item.id, "stephane", body, "answer");
+  await addComment(item.id, actor, body, "answer");
   await supabase.from("action_items")
     .update({ status: back, return_status: null })
     .eq("id", item.id);
-  await logActivity(item.id, "stephane", "Question answered");
+  await logActivity(item.id, actor, "Question answered");
 }
 
 export async function requestFollowup(item, note, actorKey) {
