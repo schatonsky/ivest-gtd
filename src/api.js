@@ -79,8 +79,22 @@ export async function deleteProject(id) {
 
 // ---------- items ----------
 export async function listItems() {
-  const { data } = await supabase.from("action_items").select("*").order("updated_at", { ascending: false });
-  return data || [];
+  const { data } = await supabase.from("action_items")
+    .select("*, action_contacts(contact_id), action_locations(location_id)")
+    .order("updated_at", { ascending: false });
+  return (data || []).map((it) => ({
+    ...it,
+    contact_ids: (it.action_contacts || []).map((r) => r.contact_id),
+    location_ids: (it.action_locations || []).map((r) => r.location_id),
+  }));
+}
+export async function setItemContacts(itemId, ids) {
+  await supabase.from("action_contacts").delete().eq("action_item_id", itemId);
+  if (ids && ids.length) await supabase.from("action_contacts").insert(ids.map((cid) => ({ action_item_id: itemId, contact_id: cid })));
+}
+export async function setItemLocations(itemId, ids) {
+  await supabase.from("action_locations").delete().eq("action_item_id", itemId);
+  if (ids && ids.length) await supabase.from("action_locations").insert(ids.map((lid) => ({ action_item_id: itemId, location_id: lid })));
 }
 export async function listComments() {
   const { data } = await supabase.from("comments").select("*").order("created_at");
@@ -89,6 +103,21 @@ export async function listComments() {
 export async function listActivity() {
   const { data } = await supabase.from("activity_log").select("*").order("created_at", { ascending: false }).limit(60);
   return data || [];
+}
+
+// ---------- reactions (emoji on conversation messages) ----------
+export async function listReactions() {
+  const { data } = await supabase.from("comment_reactions").select("*");
+  return data || [];
+}
+export async function toggleReaction(commentId, userKey, emoji) {
+  const { data } = await supabase.from("comment_reactions")
+    .select("comment_id").eq("comment_id", commentId).eq("user_key", userKey).eq("emoji", emoji).maybeSingle();
+  if (data) {
+    return supabase.from("comment_reactions").delete()
+      .eq("comment_id", commentId).eq("user_key", userKey).eq("emoji", emoji);
+  }
+  return supabase.from("comment_reactions").insert({ comment_id: commentId, user_key: userKey, emoji });
 }
 
 export async function updateItem(id, fields) {
@@ -101,10 +130,14 @@ export async function deleteItem(id) {
 }
 
 export async function createItem(fields, actorKey) {
+  const { contact_ids = [], location_ids = [], ...base } = fields;
   const { data, error } = await supabase.from("action_items")
-    .insert({ ...fields, source: "manual", status: "open" })
+    .insert({ ...base, source: "manual", status: "open" })
     .select().single();
-  if (!error && data) await logActivity(data.id, actorKey, "Created manually");
+  if (error || !data) return { data, error };
+  await setItemContacts(data.id, contact_ids);
+  await setItemLocations(data.id, location_ids);
+  await logActivity(data.id, actorKey, "Created manually");
   return { data, error };
 }
 
@@ -118,12 +151,44 @@ export async function setStatus(item, to, changeText, actorKey, extra = {}) {
 export async function addComment(itemId, author, body, type = "comment") {
   return supabase.from("comments").insert({ action_item_id: itemId, author, body, type });
 }
+export async function updateComment(id, body) {
+  return supabase.from("comments").update({ body, edited_at: new Date().toISOString() }).eq("id", id);
+}
 
-// Ask a question → store comment, remember where to resume, await an answer.
-export async function askQuestion(item, body, actor) {
+// ---------- comment read-state (per user, per item) ----------
+export async function listCommentReads() {
+  const { data } = await supabase.from("comment_reads").select("*");
+  return data || [];
+}
+export async function markItemSeen(userKey, itemId) {
+  return supabase.from("comment_reads")
+    .upsert({ user_key: userKey, action_item_id: itemId, last_seen_at: new Date().toISOString() }, { onConflict: "user_key,action_item_id" });
+}
+
+// ---------- general chat (questions not tied to an action) ----------
+export async function listGeneralMessages() {
+  const { data } = await supabase.from("general_messages").select("*").order("created_at");
+  return data || [];
+}
+export async function sendGeneralMessage(author, body) {
+  return supabase.from("general_messages").insert({ author, body });
+}
+export async function listChatReads() {
+  const { data } = await supabase.from("chat_reads").select("*");
+  return data || [];
+}
+export async function markChatSeen(userKey) {
+  return supabase.from("chat_reads")
+    .upsert({ user_key: userKey, last_seen_at: new Date().toISOString() }, { onConflict: "user_key" });
+}
+
+// Ask a question → store comment, remember where to resume, route it to the OTHER person.
+// Nicole asking → awaiting_principal (to Stephane); Stephane asking → follow_up (to Nicole).
+export async function askQuestion(item, body, actor, askerIsPrincipal) {
+  const target = askerIsPrincipal ? "follow_up" : "awaiting_principal";
   await addComment(item.id, actor, body, "question");
   await supabase.from("action_items")
-    .update({ status: "awaiting_principal", return_status: item.status })
+    .update({ status: target, return_status: item.status })
     .eq("id", item.id);
   await logActivity(item.id, actor, "Question raised");
 }
@@ -192,7 +257,7 @@ export async function listSessions() {
 // Fires `onChange` whenever any tracked table changes, so the UI can refetch.
 export function subscribe(onChange) {
   const ch = supabase.channel("gtd-live");
-  ["action_items", "comments", "activity_log", "projects", "profiles"].forEach((table) => {
+  ["action_items", "comments", "activity_log", "projects", "profiles", "locations", "action_contacts", "action_locations", "comment_reactions", "comment_reads", "general_messages", "chat_reads"].forEach((table) => {
     ch.on("postgres_changes", { event: "*", schema: "public", table }, onChange);
   });
   ch.subscribe();

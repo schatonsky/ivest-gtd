@@ -31,6 +31,27 @@ function Ico({ d }) {
 function safeUrl(u) {
   return (typeof u === "string" && /^(https:\/\/|message:)/i.test(u.trim())) ? u.trim() : null;
 }
+// Quick reactions available on each conversation message
+const REACTIONS = ["👍", "❤️", "✅", "🎉"];
+// Reaction bar under a message: one toggle per emoji, with a count + your-own highlight.
+function ReactionBar({ commentId, reactions, me, profiles }) {
+  return (
+    <div className="reactions">
+      {REACTIONS.map((emoji) => {
+        const rs = (reactions || []).filter((r) => r.comment_id === commentId && r.emoji === emoji);
+        const mine = rs.some((r) => r.user_key === me);
+        const who = rs.map((r) => profileFor(r.user_key, profiles).name).join(", ");
+        return (
+          <button key={emoji} type="button" className={"react" + (mine ? " on" : "")}
+            title={who || "React"}
+            onClick={async () => { await api.toggleReaction(commentId, me, emoji); }}>
+            <span className="e">{emoji}</span>{rs.length > 0 && <span className="n">{rs.length}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 // Deterministic color from a seed (for contacts/locations that have no stored color)
 function colorFor(seed) {
   const palette = ["#3B6CF0", "#0E9F6E", "#B45309", "#7C3AED", "#E11D48", "#0EA5E9", "#D946EF", "#F59E0B", "#14B8A6", "#6366F1"];
@@ -60,6 +81,22 @@ function Prio({ p }) {
   if (!p) return null;
   return <span className={"prio " + p}>{p}</span>;
 }
+// Multi-select as toggleable chips
+function ChipMulti({ options, selected, onToggle, empty }) {
+  return (
+    <div className="chipmulti">
+      {options.length === 0 && <span className="muted">{empty || "—"}</span>}
+      {options.map((o) => {
+        const on = (selected || []).includes(o.id);
+        return (
+          <button type="button" key={o.id} className={"chip" + (on ? " on" : "")} onClick={() => onToggle(o.id)}>
+            {o.color && <span className="pdot" style={{ background: o.color }} />}{o.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /* ============================================================
    Root
@@ -78,6 +115,10 @@ export default function App() {
   const [activity, setActivity] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [reactions, setReactions] = useState([]);
+  const [reads, setReads] = useState([]);
+  const [chat, setChat] = useState([]);
+  const [chatReads, setChatReads] = useState([]);
 
   // ui
   const [view, setView] = useState("dashboard");
@@ -118,12 +159,14 @@ export default function App() {
   }, []);
 
   async function loadData() {
-    const [it, cm, pr, ct, ac, pf, lo] = await Promise.all([
+    const [it, cm, pr, ct, ac, pf, lo, rx, rd, gm, cr] = await Promise.all([
       api.listItems(), api.listComments(), api.listProjects(),
       api.listContacts(), api.listActivity(), api.listProfiles(), api.listLocations(),
+      api.listReactions(), api.listCommentReads(), api.listGeneralMessages(), api.listChatReads(),
     ]);
     setItems(it); setComments(cm); setProjects(pr);
-    setContacts(ct); setActivity(ac); setProfiles(pf); setLocations(lo);
+    setContacts(ct); setActivity(ac); setProfiles(pf); setLocations(lo); setReactions(rx); setReads(rd);
+    setChat(gm); setChatReads(cr);
   }
 
   // record an access session + heartbeat while signed in (for the audit log)
@@ -161,12 +204,13 @@ export default function App() {
   const current = items.find((i) => i.id === currentId) || null;
 
   const ctx = {
-    me, isPrincipal, profile, profiles, items, comments, projects, contacts, activity, locations,
+    me, isPrincipal, profile, profiles, items, comments, projects, contacts, activity, locations, reactions, reads, chat, chatReads,
     notify, reload: loadData,
     open: (id) => { setCurrentId(id); setView("detail"); },
     goItems: () => { setCurrentId(null); setItemsFilter(allFilter); setView("items"); },
     goFiltered: (spec) => { setCurrentId(null); setItemsFilter({ ...allFilter, ...spec }); setView("items"); },
     goNew: () => { setCurrentId(null); setView("new"); },
+    goChat: () => { setCurrentId(null); setView("chat"); },
     initialFilter: itemsFilter,
   };
 
@@ -174,6 +218,8 @@ export default function App() {
     { key: "dashboard", label: "Dashboard", icon: I.dashboard },
     { key: "items", label: "All Items", icon: I.items },
     ...(isPrincipal ? [{ key: "new", label: "New Item", icon: I.add }] : []),
+    { key: "chat", label: "Chat", icon: I.chat },
+    { key: "email", label: "Email update", icon: I.mail },
     { key: "projects", label: "Projects", icon: I.projects },
     { key: "contacts", label: "Contacts", icon: I.contacts },
     { key: "locations", label: "Locations", icon: I.pin },
@@ -182,9 +228,13 @@ export default function App() {
     ...(isPrincipal ? [{ key: "audit", label: "Audit log", icon: I.shield }] : []),
   ];
   const myQueue = items.filter((i) => ownerOf(i) === me).length;
+  const myChatRead = chatReads.find((r) => r.user_key === me);
+  const chatSeenAt = myChatRead ? new Date(myChatRead.last_seen_at).getTime() : 0;
+  const chatUnread = chat.filter((m) => m.author !== me && new Date(m.created_at).getTime() > chatSeenAt).length;
   const titles = {
     dashboard: "Dashboard", items: "All Items", new: "New Item", projects: "Projects",
     activity: "Activity", profiles: "Profiles", audit: "Audit log", contacts: "Contacts", locations: "Locations",
+    chat: "Chat", email: "Email update",
     detail: <span><span className="crumb">All Items › </span>Item Detail</span>,
   };
 
@@ -204,6 +254,9 @@ export default function App() {
               <Ico d={n.icon} /><span>{n.label}</span>
               {n.key === "dashboard" && (
                 <span className={"badge " + (myQueue ? "" : "zero")}>{myQueue}</span>
+              )}
+              {n.key === "chat" && chatUnread > 0 && (
+                <span className="badge">{chatUnread}</span>
               )}
             </button>
           ))}
@@ -241,6 +294,8 @@ export default function App() {
           {view === "items" && <ItemsList ctx={ctx} />}
           {view === "detail" && current && <ItemDetail ctx={ctx} item={current} />}
           {view === "new" && isPrincipal && <NewItem ctx={ctx} />}
+          {view === "chat" && <Chat ctx={ctx} />}
+          {view === "email" && <EmailUpdate ctx={ctx} />}
           {view === "projects" && <Projects ctx={ctx} />}
           {view === "contacts" && <Contacts ctx={ctx} />}
           {view === "locations" && <Locations ctx={ctx} />}
@@ -260,15 +315,21 @@ export default function App() {
    ============================================================ */
 function ItemRow({ it, ctx }) {
   const proj = ctx.projects.find((p) => p.id === it.project_id);
-  const contact = ctx.contacts.find((c) => c.id === it.contact_id);
+  const cnames = (it.contact_ids || []).map((id) => (ctx.contacts.find((c) => c.id === id) || {}).name).filter(Boolean);
+  const contactLabel = cnames.length ? (cnames.length > 1 ? cnames[0] + " +" + (cnames.length - 1) : cnames[0]) : "";
+  const myRead = (ctx.reads || []).find((r) => r.user_key === ctx.me && r.action_item_id === it.id);
+  const seenAt = myRead ? new Date(myRead.last_seen_at).getTime() : 0;
+  const unread = (ctx.comments || []).filter((c) => c.action_item_id === it.id && c.author !== ctx.me && new Date(c.created_at).getTime() > seenAt).length;
   return (
     <div className="item" onClick={() => ctx.open(it.id)}>
       <div className="grow">
-        <div className="ttl">{it.title}</div>
+        <div className="ttl">{it.title}
+          {unread > 0 && <span className="newc" title={unread + " new comment" + (unread > 1 ? "s" : "")}><Ico d={I.chat} />{unread}</span>}
+        </div>
         <div className="meta">
           <span className="src"><Ico d={it.source === "email" ? I.mail : I.pencil} /> {it.source}</span>
           {proj && <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span>}
-          {contact && <span className="muted">{contact.name}</span>}
+          {contactLabel && <span className="muted">{contactLabel}</span>}
           {it.due_date && <span className="muted">due {it.due_date}</span>}
           <span className="muted">{ago(it.updated_at)}</span>
         </div>
@@ -279,12 +340,12 @@ function ItemRow({ it, ctx }) {
     </div>
   );
 }
-function Group({ title, icon, arr, ctx, empty }) {
+function Group({ title, icon, arr, ctx, empty, tone }) {
   const [open, setOpen] = useState(arr.length > 0); // empty categories start collapsed (compact)
   return (
-    <div className="group">
+    <div className="group" style={tone ? { borderLeft: "3px solid " + tone } : undefined}>
       <div className="group-head group-toggle" onClick={() => setOpen(!open)}>
-        <span className="gi"><Ico d={icon} /></span>{title}<span className="count">{arr.length}</span>
+        <span className="gi" style={tone ? { color: tone } : undefined}><Ico d={icon} /></span>{title}<span className="count">{arr.length}</span>
         <div style={{ flex: 1 }} />
         <span className={"twist" + (open ? " open" : "")}><Ico d={I.chev} /></span>
       </div>
@@ -321,6 +382,8 @@ function Dashboard({ ctx }) {
         )}
       </div>
 
+      <WhatsNew ctx={ctx} />
+
       {isPrincipal ? (
         <>
           <div className="cards">
@@ -329,9 +392,9 @@ function Dashboard({ ctx }) {
             <Stat n={by("open").length + by("in_progress").length} l="With Nicole" to="in_progress" tone="#3B6CF0" />
             <Stat n={by("closed").length} l="Closed" to="closed" tone="#98A2B3" />
           </div>
-          <Group title="Needs my answer" icon={I.flag} arr={by("awaiting_principal")} ctx={ctx} empty="Nothing waiting on you right now." />
-          <Group title="To review" icon={I.check} arr={by("pending_review")} ctx={ctx} empty="Nothing to review right now." />
-          <Group title="In Nicole's hands" icon={I.dots} arr={items.filter((i) => ["open", "in_progress", "follow_up"].includes(i.status))} ctx={ctx} empty="Nothing in progress." />
+          <Group title="Needs my answer" icon={I.flag} arr={by("awaiting_principal")} ctx={ctx} empty="Nothing waiting on you right now." tone="#E0A82E" />
+          <Group title="To review" icon={I.check} arr={by("pending_review")} ctx={ctx} empty="Nothing to review right now." tone="#9F5CF0" />
+          <Group title="In Nicole's hands" icon={I.dots} arr={items.filter((i) => ["open", "in_progress", "follow_up"].includes(i.status))} ctx={ctx} empty="Nothing in progress." tone="#3B6CF0" />
         </>
       ) : (
         <>
@@ -341,13 +404,145 @@ function Dashboard({ ctx }) {
             <Stat n={by("follow_up").length} l="Follow-ups" to="follow_up" tone="#F43F5E" />
             <Stat n={by("awaiting_principal").length} l="Waiting on Stephane" to="awaiting_principal" tone="#E0A82E" />
           </div>
-          <Group title="To do" icon={I.circle} arr={by("open")} ctx={ctx} empty="Nothing new assigned." />
-          <Group title="In progress" icon={I.dots} arr={by("in_progress")} ctx={ctx} empty="Nothing in progress." />
-          <Group title="Follow-up from Stephane" icon={I.loop} arr={by("follow_up")} ctx={ctx} empty="No follow-ups." />
-          <Group title="Waiting on Stephane" icon={I.clock} arr={by("awaiting_principal")} ctx={ctx} empty="Nothing waiting on Stephane." />
+          <Group title="To do" icon={I.circle} arr={by("open")} ctx={ctx} empty="Nothing new assigned." tone="#3B6CF0" />
+          <Group title="In progress" icon={I.dots} arr={by("in_progress")} ctx={ctx} empty="Nothing in progress." tone="#0EA5E9" />
+          <Group title="Follow-up from Stephane" icon={I.loop} arr={by("follow_up")} ctx={ctx} empty="No follow-ups." tone="#F43F5E" />
+          <Group title="Waiting on Stephane" icon={I.clock} arr={by("awaiting_principal")} ctx={ctx} empty="Nothing waiting on Stephane." tone="#E0A82E" />
         </>
       )}
     </>
+  );
+}
+
+/* ============================================================
+   What's new — unread comments/answers on actions + chat
+   ============================================================ */
+function WhatsNew({ ctx }) {
+  const { me, comments, items, reads, chat, chatReads, profiles } = ctx;
+  const readMap = {};
+  (reads || []).forEach((r) => { if (r.user_key === me) readMap[r.action_item_id] = new Date(r.last_seen_at).getTime(); });
+  const itemById = {};
+  items.forEach((i) => { itemById[i.id] = i; });
+  const unreadComments = (comments || [])
+    .filter((c) => c.author !== me && itemById[c.action_item_id] && new Date(c.created_at).getTime() > (readMap[c.action_item_id] || 0))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const myChat = (chatReads || []).find((r) => r.user_key === me);
+  const chatSeen = myChat ? new Date(myChat.last_seen_at).getTime() : 0;
+  const unreadChat = (chat || [])
+    .filter((m) => m.author !== me && new Date(m.created_at).getTime() > chatSeen)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const total = unreadComments.length + unreadChat.length;
+  if (!total) return null;
+  const verb = (t) => (t === "answer" ? "answered" : t === "question" ? "asked on" : "commented on");
+  const first = (k) => profileFor(k, profiles).name.split(" ")[0];
+  return (
+    <div className="whatsnew">
+      <div className="wn-head"><Ico d={I.activity} /> What's new <span className="count">{total}</span></div>
+      {unreadChat.slice(0, 4).map((m) => (
+        <button key={m.id} className="wn-row" onClick={() => ctx.goChat()}>
+          <Avatar k={m.author} size={26} profiles={profiles} />
+          <span className="wn-txt"><b>{first(m.author)}</b> messaged you in Chat — “{m.body.slice(0, 60)}{m.body.length > 60 ? "…" : ""}”</span>
+          <span className="wn-when">{ago(m.created_at)}</span>
+        </button>
+      ))}
+      {unreadComments.slice(0, 6).map((c) => (
+        <button key={c.id} className="wn-row" onClick={() => ctx.open(c.action_item_id)}>
+          <Avatar k={c.author} size={26} profiles={profiles} />
+          <span className="wn-txt"><b>{first(c.author)}</b> {verb(c.type)} “{itemById[c.action_item_id].title}”</span>
+          <span className="wn-when">{ago(c.created_at)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================================
+   Chat — running conversation not tied to an action
+   ============================================================ */
+function Chat({ ctx }) {
+  const { me, chat, profiles } = ctx;
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const endRef = useRef(null);
+  useEffect(() => { api.markChatSeen(me).then(() => ctx.reload()); }, [me, chat.length]);
+  useEffect(() => { endRef.current && endRef.current.scrollIntoView({ block: "end" }); }, [chat.length]);
+  const send = () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    api.sendGeneralMessage(me, text.trim()).then(() => { setText(""); setBusy(false); ctx.reload(); });
+  };
+  return (
+    <div className="chatpage">
+      <p className="muted" style={{ marginTop: 0 }}>A shared space for questions and notes that aren't tied to a specific action.</p>
+      <div className="chatthread">
+        {chat.length === 0 && <div className="muted">No messages yet — start the conversation.</div>}
+        {chat.map((m) => {
+          const mine = m.author === me;
+          return (
+            <div key={m.id} className={"cmsg" + (mine ? " mine" : "")}>
+              {!mine && <Avatar k={m.author} size={30} profiles={profiles} />}
+              <div className="cbubble">
+                {!mine && <div className="cwho">{profileFor(m.author, profiles).name.split(" ")[0]}</div>}
+                <div className="ctext">{m.body}</div>
+                <div className="cwhen">{ago(m.created_at)}</div>
+              </div>
+              {mine && <Avatar k={m.author} size={30} profiles={profiles} />}
+            </div>
+          );
+        })}
+        <div ref={endRef} />
+      </div>
+      <div className="composer">
+        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a message…"
+          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send(); }} />
+        <div className="row">
+          <button className="btn primary" disabled={busy} onClick={send}><Ico d={I.check} /> Send</button>
+          <span className="muted" style={{ fontSize: 11 }}>⌘/Ctrl + Enter to send</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Email update — formatted status email Nicole/Stephane can send
+   ============================================================ */
+const USER_EMAILS = { stephane: "stephane.chatonsky@ivest.com.au", nicole: "nicole.sciacca@ivest.com.au" };
+function EmailUpdate({ ctx }) {
+  const { me, items, projects } = ctx;
+  const [days, setDays] = useState(7);
+  const otherKey = me === "stephane" ? "nicole" : "stephane";
+  const otherName = (DEFAULTS[otherKey] || {}).name ? DEFAULTS[otherKey].name.split(" ")[0] : "there";
+  const projName = (id) => (projects.find((p) => p.id === id) || {}).name || "";
+  const OUT = ["open", "in_progress", "follow_up", "awaiting_principal", "pending_review"];
+  const cutoff = Date.now() - days * 86400000;
+  const outstanding = items.filter((i) => OUT.includes(i.status));
+  const closedRecent = items.filter((i) => i.status === "closed" && new Date(i.updated_at).getTime() >= cutoff);
+  const line = (i) => `- ${i.title}${projName(i.project_id) ? " [" + projName(i.project_id) + "]" : ""}${i.due_date ? " (due " + i.due_date + ")" : ""}`;
+  const grouped = OUT.map((s) => {
+    const g = outstanding.filter((i) => i.status === s);
+    return g.length ? `${STATES[s].label} (${g.length})\n${g.map(line).join("\n")}` : "";
+  }).filter(Boolean).join("\n\n");
+  const subject = `Action items update — ${new Date().toLocaleDateString()}`;
+  const body = `Hi ${otherName},\n\nHere's where things stand.\n\nOUTSTANDING (${outstanding.length})\n${grouped || "- none -"}\n\nCLOSED IN THE LAST ${days} DAY${days === 1 ? "" : "S"} (${closedRecent.length})\n${closedRecent.length ? closedRecent.map(line).join("\n") : "- none -"}\n\nThanks`;
+  const copy = () => { if (navigator.clipboard) navigator.clipboard.writeText(body); ctx.notify("Update copied"); };
+  const mailto = `mailto:${USER_EMAILS[otherKey]}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return (
+    <div className="emailupd">
+      <p className="muted" style={{ marginTop: 0 }}>A status email of outstanding items plus anything closed recently — addressed to {otherName}.</p>
+      <div className="eu-controls">
+        <label className="eu-days">Include items closed in the last
+          <input type="number" min="1" max="120" value={days}
+            onChange={(e) => setDays(Math.min(120, Math.max(1, parseInt(e.target.value || "1", 10))))} />
+          day{days === 1 ? "" : "s"}
+        </label>
+        <div className="eu-actions">
+          <button className="btn" onClick={copy}><Ico d={I.check} /> Copy</button>
+          <a className="btn primary" href={mailto}><Ico d={I.mail} /> Open in Mail</a>
+        </div>
+      </div>
+      <pre className="eu-preview">{body}</pre>
+    </div>
   );
 }
 
@@ -362,8 +557,8 @@ function ItemsList({ ctx }) {
   let list = items.slice();
   if (f.status !== "all") list = list.filter((i) => i.status === f.status);
   if (f.project !== "all") list = list.filter((i) => i.project_id === f.project);
-  if (f.contact !== "all") list = list.filter((i) => i.contact_id === f.contact);
-  if (f.location !== "all") list = list.filter((i) => i.location_id === f.location);
+  if (f.contact !== "all") list = list.filter((i) => (i.contact_ids || []).includes(f.contact));
+  if (f.location !== "all") list = list.filter((i) => (i.location_ids || []).includes(f.location));
   if (f.source !== "all") list = list.filter((i) => i.source === f.source);
   if (f.q) list = list.filter((i) => (i.title + " " + (i.description || "")).toLowerCase().includes(f.q.toLowerCase()));
   if (sort === "priority") {
@@ -377,6 +572,7 @@ function ItemsList({ ctx }) {
       <div className="page-head">
         <div><h2>All Items</h2><div className="sub">{list.length} of {items.length} shown</div></div>
         <div className="spacer" />
+        {ctx.isPrincipal && <button className="btn primary" onClick={() => ctx.goNew()}><Ico d={I.add} /> New item</button>}
       </div>
       <div className="filters">
         <input className="search" type="text" placeholder="Search items…" value={f.q}
@@ -428,24 +624,29 @@ function ItemDetail({ ctx, item }) {
   const [titleDraft, setTitleDraft] = useState("");
   const [descDraft, setDescDraft] = useState("");
   const [projDraft, setProjDraft] = useState("");
-  const [contactDraft, setContactDraft] = useState("");
-  const [locDraft, setLocDraft] = useState("");
+  const [contactsDraft, setContactsDraft] = useState([]);
+  const [locsDraft, setLocsDraft] = useState([]);
+  const toggleDraft = (setter) => (id) => setter((arr) => arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
   const [prioDraft, setPrioDraft] = useState("");
   const [dueDraft, setDueDraft] = useState("");
   const [note, setNote] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [editDraft, setEditDraft] = useState("");
   const answerRef = useRef(null);
   useEffect(() => {
     let on = true;
     if (isPrincipal) api.getPrivateNote(item.id).then((v) => { if (on) setNote(v || ""); });
     return () => { on = false; };
   }, [item.id, isPrincipal]);
+  // Mark this item's comments as seen for me, so the "new comments" dot clears.
+  useEffect(() => { api.markItemSeen(me, item.id).then(() => ctx.reload()); }, [item.id]);
   const saveNote = async () => { setNoteSaving(true); await api.savePrivateNote(item.id, note); setNoteSaving(false); ctx.notify("Private note saved"); };
   const owner = ownerOf(item);
   const itemComments = ctx.comments.filter((c) => c.action_item_id === item.id);
   const proj = projects.find((p) => p.id === item.project_id);
-  const contact = contacts.find((c) => c.id === item.contact_id);
-  const loc = locations.find((l) => l.id === item.location_id);
+  const itemContacts = (item.contact_ids || []).map((id) => contacts.find((c) => c.id === id)).filter(Boolean);
+  const itemLocations = (item.location_ids || []).map((id) => locations.find((l) => l.id === id)).filter(Boolean);
 
   const run = async (fn) => { setBusy(true); try { await fn(); await ctx.reload(); } finally { setBusy(false); } };
 
@@ -453,15 +654,22 @@ function ItemDetail({ ctx, item }) {
     await api.setStatus(item, to, text, me);
     ctx.notify("Moved to " + STATES[to].label);
   });
+  const startEditMsg = (m) => { setEditId(m.id); setEditDraft(m.body); };
+  const cancelEditMsg = () => { setEditId(null); setEditDraft(""); };
+  const saveEditMsg = () => { if (!editDraft.trim()) return; run(async () => {
+    await api.updateComment(editId, editDraft.trim());
+    setEditId(null); setEditDraft(""); ctx.notify("Message updated");
+  }); };
   const doComment = () => { if (!comment.trim()) return; run(async () => {
     await api.addComment(item.id, me, comment.trim());
     await api.logActivity(item.id, me, "Comment added");
     setComment(""); ctx.notify("Comment added");
   }); };
   const doAsk = () => {
-    const q = (comment.trim() || window.prompt("What is your question for Stephane?") || "").trim();
+    const other = isPrincipal ? "Nicole" : "Stephane";
+    const q = (comment.trim() || window.prompt(`What is your question for ${other}?`) || "").trim();
     if (!q) return;
-    run(async () => { await api.askQuestion(item, q, me); setComment(""); ctx.notify("Question raised"); });
+    run(async () => { await api.askQuestion(item, q, me, isPrincipal); setComment(""); ctx.notify(`Question sent to ${other}`); });
   };
   const doAnswer = () => { if (!answer.trim()) return; run(async () => {
     await api.submitAnswer(item, answer.trim(), me); setAnswer(""); ctx.notify("Answer sent");
@@ -484,8 +692,8 @@ function ItemDetail({ ctx, item }) {
     setTitleDraft(item.title);
     setDescDraft(item.description || "");
     setProjDraft(item.project_id || "");
-    setContactDraft(item.contact_id || "");
-    setLocDraft(item.location_id || "");
+    setContactsDraft(item.contact_ids || []);
+    setLocsDraft(item.location_ids || []);
     setPrioDraft(item.priority || "");
     setDueDraft(item.due_date || "");
     setEditing(true);
@@ -497,11 +705,11 @@ function ItemDetail({ ctx, item }) {
         title: titleDraft.trim(),
         description: descDraft,
         project_id: projDraft || null,
-        contact_id: contactDraft || null,
-        location_id: locDraft || null,
         priority: prioDraft || null,
         due_date: dueDraft || null,
       });
+      await api.setItemContacts(item.id, contactsDraft);
+      await api.setItemLocations(item.id, locsDraft);
       await api.logActivity(item.id, me, "Edited details");
       setEditing(false); ctx.notify("Item updated");
     });
@@ -569,19 +777,13 @@ function ItemDetail({ ctx, item }) {
                     {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="fld">Contact</label>
-                  <select value={contactDraft} onChange={(e) => setContactDraft(e.target.value)}>
-                    <option value="">— none —</option>
-                    {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                <div className="full">
+                  <label className="fld">Contacts</label>
+                  <ChipMulti options={contacts} selected={contactsDraft} onToggle={toggleDraft(setContactsDraft)} empty="No contacts yet" />
                 </div>
-                <div>
-                  <label className="fld">Location</label>
-                  <select value={locDraft} onChange={(e) => setLocDraft(e.target.value)}>
-                    <option value="">— none —</option>
-                    {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                  </select>
+                <div className="full">
+                  <label className="fld">Locations</label>
+                  <ChipMulti options={locations} selected={locsDraft} onToggle={toggleDraft(setLocsDraft)} empty="No locations yet" />
                 </div>
                 <div>
                   <label className="fld">Priority</label>
@@ -594,7 +796,8 @@ function ItemDetail({ ctx, item }) {
                 </div>
                 <div>
                   <label className="fld">Due date</label>
-                  <input type="date" value={dueDraft} onChange={(e) => setDueDraft(e.target.value)} />
+                  <input type="date" className="datepick" value={dueDraft} onChange={(e) => setDueDraft(e.target.value)}
+                    onClick={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()} />
                 </div>
               </div>
               <div className="actions">
@@ -634,8 +837,23 @@ function ItemDetail({ ctx, item }) {
                     {m.type === "question" && <span className="lbl q">Question</span>}
                     {m.type === "answer" && <span className="lbl a">Answer</span>}
                   </div>
-                  <div className="mbody">{m.body}</div>
-                  <div className="t">{ago(m.created_at)}</div>
+                  {editId === m.id ? (
+                    <div className="editmsg">
+                      <textarea value={editDraft} onChange={(e) => setEditDraft(e.target.value)} autoFocus />
+                      <div className="row">
+                        <button className="btn sm" disabled={busy} onClick={saveEditMsg}><Ico d={I.check} /> Save</button>
+                        <button className="btn ghost sm" disabled={busy} onClick={cancelEditMsg}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mbody">{m.body}</div>
+                  )}
+                  <div className="t">{ago(m.created_at)}{m.edited_at ? " · edited" : ""}
+                    {m.author === me && editId !== m.id && (
+                      <button className="linkbtn" onClick={() => startEditMsg(m)}>Edit</button>
+                    )}
+                  </div>
+                  <ReactionBar commentId={m.id} reactions={ctx.reactions} me={me} profiles={profiles} />
                 </div>
               </div>
             ))}
@@ -670,8 +888,8 @@ function ItemDetail({ ctx, item }) {
           <div className="kv"><span className="k">Owner now</span><span className="v">{owner ? profileFor(owner, profiles).name : "—"}</span></div>
           <div className="kv"><span className="k">Assigned to</span><span className="v">{profileFor(item.assigned_to, profiles).name}</span></div>
           <div className="kv"><span className="k">Project</span><span className="v">{proj ? <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span> : "—"}</span></div>
-          <div className="kv"><span className="k">Contact</span><span className="v">{contact ? contact.name : "—"}</span></div>
-          <div className="kv"><span className="k">Location</span><span className="v">{loc ? loc.name : "—"}</span></div>
+          <div className="kv"><span className="k">Contacts</span><span className="v">{itemContacts.length ? itemContacts.map((c) => c.name).join(", ") : "—"}</span></div>
+          <div className="kv"><span className="k">Locations</span><span className="v">{itemLocations.length ? itemLocations.map((l) => l.name).join(", ") : "—"}</span></div>
           <div className="kv"><span className="k">Source</span><span className="v">{item.source === "email" ? (safeUrl(item.source_email_url) ? <a href={safeUrl(item.source_email_url)} target="_blank" rel="noreferrer">Open in Mail ↗</a> : "Email") : "Created manually"}</span></div>
           <div className="kv"><span className="k">Priority</span><span className="v">{item.priority || "—"}</span></div>
           <div className="kv"><span className="k">Due</span><span className="v">{item.due_date || "—"}</span></div>
@@ -716,9 +934,10 @@ function EmailAttachment({ item }) {
    ============================================================ */
 function NewItem({ ctx }) {
   const { projects, contacts, locations, me } = ctx;
-  const [form, setForm] = useState({ title: "", description: "", project_id: "", contact_id: "", location_id: "", priority: "normal", due_date: "", assigned_to: "nicole" });
+  const [form, setForm] = useState({ title: "", description: "", project_id: "", contact_ids: [], location_ids: [], priority: "normal", due_date: "", assigned_to: "nicole" });
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setForm({ ...form, [k]: v });
+  const toggle = (k, id) => setForm((f) => ({ ...f, [k]: f[k].includes(id) ? f[k].filter((x) => x !== id) : [...f[k], id] }));
 
   const create = async () => {
     if (!form.title.trim()) { ctx.notify("Give the item a title"); return; }
@@ -727,8 +946,8 @@ function NewItem({ ctx }) {
       title: form.title.trim(),
       description: form.description.trim(),
       project_id: form.project_id || null,
-      contact_id: form.contact_id || null,
-      location_id: form.location_id || null,
+      contact_ids: form.contact_ids,
+      location_ids: form.location_ids,
       priority: form.priority || null,
       due_date: form.due_date || null,
       created_by: me,
@@ -753,19 +972,17 @@ function NewItem({ ctx }) {
             <select value={form.project_id} onChange={(e) => set("project_id", e.target.value)}>
               <option value="">— none —</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select></div>
-          <div><label className="fld">Contact</label>
-            <select value={form.contact_id} onChange={(e) => set("contact_id", e.target.value)}>
-              <option value="">— none —</option>{contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select></div>
-          <div><label className="fld">Location</label>
-            <select value={form.location_id} onChange={(e) => set("location_id", e.target.value)}>
-              <option value="">— none —</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select></div>
+          <div className="full"><label className="fld">Contacts</label>
+            <ChipMulti options={contacts} selected={form.contact_ids} onToggle={(id) => toggle("contact_ids", id)} empty="No contacts yet" />
+          </div>
+          <div className="full"><label className="fld">Locations</label>
+            <ChipMulti options={locations} selected={form.location_ids} onToggle={(id) => toggle("location_ids", id)} empty="No locations yet" />
+          </div>
           <div><label className="fld">Priority (optional)</label>
             <select value={form.priority} onChange={(e) => set("priority", e.target.value)}>
               <option value="">— blank —</option><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option>
             </select></div>
-          <div><label className="fld">Due date (optional)</label><input type="date" value={form.due_date} onChange={(e) => set("due_date", e.target.value)} /></div>
+          <div><label className="fld">Due date (optional)</label><input type="date" className="datepick" value={form.due_date} onChange={(e) => set("due_date", e.target.value)} onClick={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()} /></div>
           <div className="full"><label className="fld">Assign to</label>
             <select value={form.assigned_to} onChange={(e) => set("assigned_to", e.target.value)}>
               <option value="nicole">Nicole Sciacca</option><option value="stephane">Stephane (myself)</option>
@@ -789,7 +1006,7 @@ function Projects({ ctx }) {
   const [sort, setSort] = useState("custom");
   const openCount = (id) => items.filter((i) => i.project_id === id && i.status !== "closed").length;
   const contactsFor = (pid) => {
-    const ids = [...new Set(items.filter((i) => i.project_id === pid).map((i) => i.contact_id).filter(Boolean))];
+    const ids = [...new Set(items.filter((i) => i.project_id === pid).flatMap((i) => i.contact_ids || []))];
     return ids.map((id) => contacts.find((c) => c.id === id)).filter(Boolean);
   };
   const reorder = async (arr) => { await Promise.all(arr.map((p, i) => api.updateProjectOrder(p.id, i + 1))); await ctx.reload(); };
@@ -864,9 +1081,9 @@ function Projects({ ctx }) {
 function Contacts({ ctx }) {
   const { contacts, items, projects, isPrincipal } = ctx;
   const [sort, setSort] = useState("custom");
-  const openCount = (id) => items.filter((i) => i.contact_id === id && i.status !== "closed").length;
+  const openCount = (id) => items.filter((i) => (i.contact_ids || []).includes(id) && i.status !== "closed").length;
   const projsFor = (cid) => {
-    const ids = [...new Set(items.filter((i) => i.contact_id === cid).map((i) => i.project_id).filter(Boolean))];
+    const ids = [...new Set(items.filter((i) => (i.contact_ids || []).includes(cid)).map((i) => i.project_id).filter(Boolean))];
     return ids.map((id) => projects.find((p) => p.id === id)).filter(Boolean);
   };
   const reorder = async (arr) => { await Promise.all(arr.map((c, i) => api.updateContactOrder(c.id, i + 1))); await ctx.reload(); };
@@ -952,7 +1169,7 @@ function Contacts({ ctx }) {
 function Locations({ ctx }) {
   const { locations, items, isPrincipal } = ctx;
   const [sort, setSort] = useState("custom");
-  const openCount = (id) => items.filter((i) => i.location_id === id && i.status !== "closed").length;
+  const openCount = (id) => items.filter((i) => (i.location_ids || []).includes(id) && i.status !== "closed").length;
   const reorder = async (arr) => { await Promise.all(arr.map((l, i) => api.updateLocationOrder(l.id, i + 1))); await ctx.reload(); };
   const move = (i, dir) => {
     const arr = locations.slice(); const j = i + dir;
