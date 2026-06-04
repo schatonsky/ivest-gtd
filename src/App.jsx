@@ -31,27 +31,6 @@ function Ico({ d }) {
 function safeUrl(u) {
   return (typeof u === "string" && /^(https:\/\/|message:)/i.test(u.trim())) ? u.trim() : null;
 }
-// Quick reactions available on each conversation message
-const REACTIONS = ["👍", "❤️", "✅", "🎉"];
-// Reaction bar under a message: one toggle per emoji, with a count + your-own highlight.
-function ReactionBar({ commentId, reactions, me, profiles }) {
-  return (
-    <div className="reactions">
-      {REACTIONS.map((emoji) => {
-        const rs = (reactions || []).filter((r) => r.comment_id === commentId && r.emoji === emoji);
-        const mine = rs.some((r) => r.user_key === me);
-        const who = rs.map((r) => profileFor(r.user_key, profiles).name).join(", ");
-        return (
-          <button key={emoji} type="button" className={"react" + (mine ? " on" : "")}
-            title={who || "React"}
-            onClick={async () => { await api.toggleReaction(commentId, me, emoji); }}>
-            <span className="e">{emoji}</span>{rs.length > 0 && <span className="n">{rs.length}</span>}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 // Deterministic color from a seed (for contacts/locations that have no stored color)
 function colorFor(seed) {
   const palette = ["#3B6CF0", "#0E9F6E", "#B45309", "#7C3AED", "#E11D48", "#0EA5E9", "#D946EF", "#F59E0B", "#14B8A6", "#6366F1"];
@@ -219,7 +198,7 @@ export default function App() {
     { key: "items", label: "All Items", icon: I.items },
     ...(isPrincipal ? [{ key: "new", label: "New Item", icon: I.add }] : []),
     { key: "chat", label: "Chat", icon: I.chat },
-    { key: "email", label: "Email update", icon: I.mail },
+    ...(!isPrincipal ? [{ key: "email", label: "Email update", icon: I.mail }] : []),
     { key: "projects", label: "Projects", icon: I.projects },
     { key: "contacts", label: "Contacts", icon: I.contacts },
     { key: "locations", label: "Locations", icon: I.pin },
@@ -295,7 +274,7 @@ export default function App() {
           {view === "detail" && current && <ItemDetail ctx={ctx} item={current} />}
           {view === "new" && isPrincipal && <NewItem ctx={ctx} />}
           {view === "chat" && <Chat ctx={ctx} />}
-          {view === "email" && <EmailUpdate ctx={ctx} />}
+          {view === "email" && !isPrincipal && <EmailUpdate ctx={ctx} />}
           {view === "projects" && <Projects ctx={ctx} />}
           {view === "contacts" && <Contacts ctx={ctx} />}
           {view === "locations" && <Locations ctx={ctx} />}
@@ -340,8 +319,8 @@ function ItemRow({ it, ctx }) {
     </div>
   );
 }
-function Group({ title, icon, arr, ctx, empty, tone }) {
-  const [open, setOpen] = useState(arr.length > 0); // empty categories start collapsed (compact)
+function Group({ title, icon, arr, ctx, empty, tone, startOpen }) {
+  const [open, setOpen] = useState(startOpen !== undefined ? startOpen : arr.length > 0); // empty categories start collapsed (compact)
   return (
     <div className="group" style={tone ? { borderLeft: "3px solid " + tone } : undefined}>
       <div className="group-head group-toggle" onClick={() => setOpen(!open)}>
@@ -423,34 +402,46 @@ function WhatsNew({ ctx }) {
   (reads || []).forEach((r) => { if (r.user_key === me) readMap[r.action_item_id] = new Date(r.last_seen_at).getTime(); });
   const itemById = {};
   items.forEach((i) => { itemById[i.id] = i; });
-  const unreadComments = (comments || [])
-    .filter((c) => c.author !== me && itemById[c.action_item_id] && new Date(c.created_at).getTime() > (readMap[c.action_item_id] || 0))
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const unread = (comments || []).filter((c) => c.author !== me && itemById[c.action_item_id] && new Date(c.created_at).getTime() > (readMap[c.action_item_id] || 0));
+  const byItem = {};
+  unread.forEach((c) => { const cur = byItem[c.action_item_id]; if (!cur || new Date(c.created_at) > new Date(cur.created_at)) byItem[c.action_item_id] = c; });
+  const itemRows = Object.values(byItem).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   const myChat = (chatReads || []).find((r) => r.user_key === me);
   const chatSeen = myChat ? new Date(myChat.last_seen_at).getTime() : 0;
-  const unreadChat = (chat || [])
-    .filter((m) => m.author !== me && new Date(m.created_at).getTime() > chatSeen)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  const total = unreadComments.length + unreadChat.length;
+  const unreadChat = (chat || []).filter((m) => m.author !== me && new Date(m.created_at).getTime() > chatSeen)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const total = itemRows.length + (unreadChat.length ? 1 : 0);
   if (!total) return null;
   const verb = (t) => (t === "answer" ? "answered" : t === "question" ? "asked on" : "commented on");
   const first = (k) => profileFor(k, profiles).name.split(" ")[0];
+  const dismiss = (e, itemId) => { e.stopPropagation(); api.markItemSeen(me, itemId).then(() => ctx.reload()); };
+  const dismissChat = (e) => { e.stopPropagation(); api.markChatSeen(me).then(() => ctx.reload()); };
+  const clearAll = () => {
+    Promise.all([...itemRows.map((c) => api.markItemSeen(me, c.action_item_id)), unreadChat.length ? api.markChatSeen(me) : Promise.resolve()])
+      .then(() => ctx.reload());
+  };
+  const lastChat = unreadChat[unreadChat.length - 1];
   return (
     <div className="whatsnew">
-      <div className="wn-head"><Ico d={I.activity} /> What's new <span className="count">{total}</span></div>
-      {unreadChat.slice(0, 4).map((m) => (
-        <button key={m.id} className="wn-row" onClick={() => ctx.goChat()}>
-          <Avatar k={m.author} size={26} profiles={profiles} />
-          <span className="wn-txt"><b>{first(m.author)}</b> messaged you in Chat — “{m.body.slice(0, 60)}{m.body.length > 60 ? "…" : ""}”</span>
-          <span className="wn-when">{ago(m.created_at)}</span>
-        </button>
-      ))}
-      {unreadComments.slice(0, 6).map((c) => (
-        <button key={c.id} className="wn-row" onClick={() => ctx.open(c.action_item_id)}>
+      <div className="wn-head"><Ico d={I.activity} /> What's new <span className="count">{total}</span>
+        <span style={{ flex: 1 }} />
+        <button className="linkbtn" onClick={clearAll}>Mark all read</button>
+      </div>
+      {lastChat && (
+        <div className="wn-row" onClick={() => ctx.goChat()}>
+          <Avatar k={lastChat.author} size={26} profiles={profiles} />
+          <span className="wn-txt"><b>{first(lastChat.author)}</b> sent {unreadChat.length} new message{unreadChat.length > 1 ? "s" : ""} in Chat</span>
+          <span className="wn-when">{ago(lastChat.created_at)}</span>
+          <button className="wn-tick" title="Mark read" onClick={dismissChat}><Ico d={I.check} /></button>
+        </div>
+      )}
+      {itemRows.map((c) => (
+        <div key={c.id} className="wn-row" onClick={() => ctx.open(c.action_item_id)}>
           <Avatar k={c.author} size={26} profiles={profiles} />
           <span className="wn-txt"><b>{first(c.author)}</b> {verb(c.type)} “{itemById[c.action_item_id].title}”</span>
           <span className="wn-when">{ago(c.created_at)}</span>
-        </button>
+          <button className="wn-tick" title="Mark read" onClick={(e) => dismiss(e, c.action_item_id)}><Ico d={I.check} /></button>
+        </div>
       ))}
     </div>
   );
@@ -567,6 +558,8 @@ function ItemsList({ ctx }) {
   } else if (sort === "due") {
     list = list.slice().sort((a, b) => (a.due_date ? 0 : 1) - (b.due_date ? 0 : 1) || String(a.due_date || "").localeCompare(String(b.due_date || "")));
   }
+  const active = list.filter((i) => i.status !== "closed");
+  const closed = list.filter((i) => i.status === "closed");
   return (
     <>
       <div className="page-head">
@@ -604,10 +597,22 @@ function ItemsList({ ctx }) {
           <option value="due">Sort: Due date</option>
         </select>
       </div>
-      <div className="group">
-        {list.length ? list.map((it) => <ItemRow key={it.id} it={it} ctx={ctx} />)
-          : <div className="empty">No items match these filters.</div>}
-      </div>
+      {f.status === "all" ? (
+        <>
+          <div className="group">
+            {active.length ? active.map((it) => <ItemRow key={it.id} it={it} ctx={ctx} />)
+              : <div className="empty">No open items match these filters.</div>}
+          </div>
+          {closed.length > 0 && (
+            <Group title="Closed" icon={I.check} arr={closed} ctx={ctx} empty="No closed items." tone="#98A2B3" startOpen={false} />
+          )}
+        </>
+      ) : (
+        <div className="group">
+          {list.length ? list.map((it) => <ItemRow key={it.id} it={it} ctx={ctx} />)
+            : <div className="empty">No items match these filters.</div>}
+        </div>
+      )}
     </>
   );
 }
@@ -631,17 +636,40 @@ function ItemDetail({ ctx, item }) {
   const [dueDraft, setDueDraft] = useState("");
   const [note, setNote] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+  const [noteFiles, setNoteFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
   const [editId, setEditId] = useState(null);
   const [editDraft, setEditDraft] = useState("");
   const answerRef = useRef(null);
   useEffect(() => {
     let on = true;
-    if (isPrincipal) api.getPrivateNote(item.id).then((v) => { if (on) setNote(v || ""); });
+    if (isPrincipal) {
+      api.getPrivateNote(item.id).then((v) => { if (on) setNote(v || ""); });
+      api.listNoteFiles(item.id).then((fs) => { if (on) setNoteFiles(fs); });
+    }
     return () => { on = false; };
   }, [item.id, isPrincipal]);
   // Mark this item's comments as seen for me, so the "new comments" dot clears.
   useEffect(() => { api.markItemSeen(me, item.id).then(() => ctx.reload()); }, [item.id]);
   const saveNote = async () => { setNoteSaving(true); await api.savePrivateNote(item.id, note); setNoteSaving(false); ctx.notify("Private note saved"); };
+  const onPickFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    const { error } = await api.uploadNoteFile(item.id, file);
+    setUploading(false);
+    if (error) { ctx.notify("Upload failed"); return; }
+    setNoteFiles(await api.listNoteFiles(item.id));
+    ctx.notify("File attached");
+  };
+  const openNoteFile = async (f) => { const url = await api.noteFileUrl(f.storage_path); if (url) window.open(url, "_blank", "noreferrer"); };
+  const removeNoteFile = async (f) => {
+    if (!window.confirm("Remove this attachment?")) return;
+    await api.deleteNoteFile(f);
+    setNoteFiles(await api.listNoteFiles(item.id));
+    ctx.notify("Attachment removed");
+  };
   const owner = ownerOf(item);
   const itemComments = ctx.comments.filter((c) => c.action_item_id === item.id);
   const proj = projects.find((p) => p.id === item.project_id);
@@ -853,7 +881,6 @@ function ItemDetail({ ctx, item }) {
                       <button className="linkbtn" onClick={() => startEditMsg(m)}>Edit</button>
                     )}
                   </div>
-                  <ReactionBar commentId={m.id} reactions={ctx.reactions} me={me} profiles={profiles} />
                 </div>
               </div>
             ))}
@@ -878,7 +905,24 @@ function ItemDetail({ ctx, item }) {
             <div className="privnote">
               <h4>Private note <span className="tag-private">only you</span></h4>
               <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="A private note only you can see…" />
-              <div className="actions"><button className="btn" disabled={noteSaving} onClick={saveNote}>Save note</button></div>
+              <div className="actions">
+                <button className="btn" disabled={noteSaving} onClick={saveNote}>Save note</button>
+                <label className="btn" style={{ cursor: "pointer" }}>
+                  <Ico d={I.add} /> Attach file
+                  <input type="file" style={{ display: "none" }} onChange={onPickFile} disabled={uploading} />
+                </label>
+                {uploading && <span className="muted" style={{ fontSize: 12 }}>Uploading…</span>}
+              </div>
+              {noteFiles.length > 0 && (
+                <div className="notefiles">
+                  {noteFiles.map((f) => (
+                    <div key={f.id} className="notefile">
+                      <button className="nf-name" onClick={() => openNoteFile(f)} title="Open attachment">{f.file_name}</button>
+                      <button className="linkbtn" onClick={() => removeNoteFile(f)}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

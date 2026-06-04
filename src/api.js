@@ -237,6 +237,28 @@ export async function savePrivateNote(itemId, body) {
     .upsert({ action_item_id: itemId, body, updated_at: new Date().toISOString() }, { onConflict: "action_item_id" });
 }
 
+// ---------- private note attachments (Storage bucket "note-files", principal-only) ----------
+export async function listNoteFiles(itemId) {
+  const { data } = await supabase.from("private_note_files").select("*").eq("action_item_id", itemId).order("uploaded_at");
+  return data || [];
+}
+export async function uploadNoteFile(itemId, file) {
+  const safe = file.name.replace(/[^\w.\-]+/g, "_");
+  const path = `${itemId}/${Date.now()}-${safe}`;
+  const up = await supabase.storage.from("note-files").upload(path, file, { upsert: false });
+  if (up.error) return { error: up.error };
+  const { error } = await supabase.from("private_note_files").insert({ action_item_id: itemId, file_name: file.name, storage_path: path });
+  return { error };
+}
+export async function noteFileUrl(path) {
+  const { data } = await supabase.storage.from("note-files").createSignedUrl(path, 3600);
+  return data ? data.signedUrl : null;
+}
+export async function deleteNoteFile(f) {
+  await supabase.storage.from("note-files").remove([f.storage_path]);
+  return supabase.from("private_note_files").delete().eq("id", f.id);
+}
+
 // ---------- access / audit log ----------
 export async function startSession(userKey) {
   const id = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : null;
