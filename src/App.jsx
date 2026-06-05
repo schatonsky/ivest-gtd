@@ -82,6 +82,7 @@ function ChipMulti({ options, selected, onToggle, empty }) {
    ============================================================ */
 export default function App() {
   const [theme, setTheme] = useState("light");
+  const [width, setWidth] = useState("comfortable");
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [booting, setBooting] = useState(true);
@@ -118,12 +119,18 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", t);
     try { localStorage.setItem("gtd-theme", t); } catch {}
   }
+  function applyWidth(w) {
+    setWidth(w);
+    try { localStorage.setItem("gtd-width", w); } catch {}
+  }
 
-  // theme on mount
+  // theme + width on mount
   useEffect(() => {
-    let saved = "light";
-    try { saved = localStorage.getItem("gtd-theme") || "light"; } catch {}
-    applyTheme(saved);
+    let savedTheme = "light", savedWidth = "comfortable";
+    try { savedTheme = localStorage.getItem("gtd-theme") || "light"; } catch {}
+    try { savedWidth = localStorage.getItem("gtd-width") || "comfortable"; } catch {}
+    applyTheme(savedTheme);
+    setWidth(savedWidth);
   }, []);
 
   // auth
@@ -196,9 +203,9 @@ export default function App() {
   const NAV = [
     { key: "dashboard", label: "Dashboard", icon: I.dashboard },
     { key: "items", label: "All Items", icon: I.items },
-    ...(isPrincipal ? [{ key: "new", label: "New Item", icon: I.add }] : []),
+    { key: "recurring", label: "Recurring", icon: I.loop },
+    { key: "new", label: "New Item", icon: I.add },
     { key: "chat", label: "Chat", icon: I.chat },
-    ...(!isPrincipal ? [{ key: "email", label: "Email update", icon: I.mail }] : []),
     { key: "projects", label: "Projects", icon: I.projects },
     { key: "contacts", label: "Contacts", icon: I.contacts },
     { key: "locations", label: "Locations", icon: I.pin },
@@ -213,7 +220,7 @@ export default function App() {
   const titles = {
     dashboard: "Dashboard", items: "All Items", new: "New Item", projects: "Projects",
     activity: "Activity", profiles: "Profiles", audit: "Audit log", contacts: "Contacts", locations: "Locations",
-    chat: "Chat", email: "Email update",
+    chat: "Chat", email: "Email update", recurring: "Recurring",
     detail: <span><span className="crumb">All Items › </span>Item Detail</span>,
   };
 
@@ -241,6 +248,11 @@ export default function App() {
           ))}
         </nav>
         <div className="sb-foot">
+          <div className="width-ctl" title="Content width">
+            {[["comfortable", "Comfortable"], ["wide", "Wide"], ["full", "Full"]].map(([w, label]) => (
+              <button key={w} className={width === w ? "on" : ""} onClick={() => applyWidth(w)}>{label}</button>
+            ))}
+          </div>
           <button className="who-card" onClick={() => { setView("profiles"); setNavOpen(false); }}>
             <Avatar k={me} size={34} profiles={profiles} />
             <div className="meta">
@@ -255,6 +267,7 @@ export default function App() {
         <div className="topbar">
           <button className="btn ghost sm hamburger" aria-label="Menu" onClick={() => setNavOpen(true)}><Ico d={I.menu} /></button>
           <h1>{titles[view]}</h1>
+          <GlobalSearch ctx={ctx} />
           <div className="spacer" />
           <button className="btn ghost sm" onClick={() => applyTheme(theme === "dark" ? "light" : "dark")}>
             <Ico d={theme === "dark" ? I.sun : I.moon} />
@@ -268,13 +281,13 @@ export default function App() {
           </button>
         </div>
 
-        <div className="content" key={view + (currentId || "")}>
+        <div className={"content width-" + width} key={view + (currentId || "")}>
           {view === "dashboard" && <Dashboard ctx={ctx} />}
           {view === "items" && <ItemsList ctx={ctx} />}
+          {view === "recurring" && <Recurring ctx={ctx} />}
           {view === "detail" && current && <ItemDetail ctx={ctx} item={current} />}
-          {view === "new" && isPrincipal && <NewItem ctx={ctx} />}
+          {view === "new" && <NewItem ctx={ctx} />}
           {view === "chat" && <Chat ctx={ctx} />}
-          {view === "email" && !isPrincipal && <EmailUpdate ctx={ctx} />}
           {view === "projects" && <Projects ctx={ctx} />}
           {view === "contacts" && <Contacts ctx={ctx} />}
           {view === "locations" && <Locations ctx={ctx} />}
@@ -308,6 +321,7 @@ function ItemRow({ it, ctx }) {
         <div className="meta">
           <span className="src"><Ico d={it.source === "email" ? I.mail : I.pencil} /> {it.source}</span>
           {proj && <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span>}
+          {it.is_recurring && <span className="tag recur"><Ico d={I.loop} />Recurring</span>}
           {contactLabel && <span className="muted">{contactLabel}</span>}
           {it.due_date && <span className="muted">due {it.due_date}</span>}
           <span className="muted">{ago(it.updated_at)}</span>
@@ -354,11 +368,9 @@ function Dashboard({ ctx }) {
           <div className="sub">Here's where things stand right now.</div>
         </div>
         <div className="spacer" />
-        {isPrincipal && (
-          <button className="btn primary" onClick={() => ctx.goNew()}>
-            <Ico d={I.add} /> New item
-          </button>
-        )}
+        <button className="btn primary" onClick={() => ctx.goNew()}>
+          <Ico d={I.add} /> New item
+        </button>
       </div>
 
       <WhatsNew ctx={ctx} />
@@ -538,6 +550,69 @@ function EmailUpdate({ ctx }) {
 }
 
 /* ============================================================
+   Global search (top bar)
+   ============================================================ */
+function GlobalSearch({ ctx }) {
+  const { items } = ctx;
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const term = q.trim().toLowerCase();
+  const results = term.length >= 2
+    ? items.filter((i) => (i.title + " " + (i.description || "")).toLowerCase().includes(term)).slice(0, 8)
+    : [];
+  const go = (id) => { ctx.open(id); setQ(""); setOpen(false); };
+  return (
+    <div className="gsearch">
+      <input type="text" value={q} placeholder="Search actions…"
+        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      {open && term.length >= 2 && (
+        <div className="gsearch-pop">
+          {results.length ? results.map((i) => (
+            <button key={i.id} className="gsearch-row" onMouseDown={() => go(i.id)}>
+              <span className="gs-ttl">{i.title}</span>
+              <StateBadge s={i.status} />
+            </button>
+          )) : <div className="gsearch-empty">No matches</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   Recurring view
+   ============================================================ */
+function Recurring({ ctx }) {
+  const { items } = ctx;
+  const recurring = items.filter((i) => i.is_recurring);
+  const active = recurring.filter((i) => i.status !== "closed");
+  const closed = recurring.filter((i) => i.status === "closed");
+  return (
+    <>
+      <div className="page-head">
+        <div><h2>Recurring</h2><div className="sub">{recurring.length} marked recurring</div></div>
+        <div className="spacer" />
+        <button className="btn primary" onClick={() => ctx.goNew()}><Ico d={I.add} /> New item</button>
+      </div>
+      <p className="muted" style={{ marginTop: -8 }}>Actions you set up regularly. Tick “Recurring” on any action to list it here; once you've done this round, create the next one.</p>
+      {recurring.length === 0 ? (
+        <div className="group"><div className="empty">Nothing marked recurring yet. Open an action, click Edit, and tick “Recurring”.</div></div>
+      ) : (
+        <>
+          <div className="group">
+            {active.length ? active.map((it) => <ItemRow key={it.id} it={it} ctx={ctx} />)
+              : <div className="empty">None active right now — time to set up the next round.</div>}
+          </div>
+          {closed.length > 0 && <Group title="Done this round" icon={I.check} arr={closed} ctx={ctx} empty="" tone="#98A2B3" startOpen={false} />}
+        </>
+      )}
+    </>
+  );
+}
+
+/* ============================================================
    Items list
    ============================================================ */
 function ItemsList({ ctx }) {
@@ -565,7 +640,7 @@ function ItemsList({ ctx }) {
       <div className="page-head">
         <div><h2>All Items</h2><div className="sub">{list.length} of {items.length} shown</div></div>
         <div className="spacer" />
-        {ctx.isPrincipal && <button className="btn primary" onClick={() => ctx.goNew()}><Ico d={I.add} /> New item</button>}
+        <button className="btn primary" onClick={() => ctx.goNew()}><Ico d={I.add} /> New item</button>
       </div>
       <div className="filters">
         <input className="search" type="text" placeholder="Search items…" value={f.q}
@@ -634,6 +709,7 @@ function ItemDetail({ ctx, item }) {
   const toggleDraft = (setter) => (id) => setter((arr) => arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
   const [prioDraft, setPrioDraft] = useState("");
   const [dueDraft, setDueDraft] = useState("");
+  const [recurDraft, setRecurDraft] = useState(false);
   const [note, setNote] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteFiles, setNoteFiles] = useState([]);
@@ -724,6 +800,7 @@ function ItemDetail({ ctx, item }) {
     setLocsDraft(item.location_ids || []);
     setPrioDraft(item.priority || "");
     setDueDraft(item.due_date || "");
+    setRecurDraft(!!item.is_recurring);
     setEditing(true);
   };
   const saveEdit = () => {
@@ -735,6 +812,7 @@ function ItemDetail({ ctx, item }) {
         project_id: projDraft || null,
         priority: prioDraft || null,
         due_date: dueDraft || null,
+        is_recurring: recurDraft,
       });
       await api.setItemContacts(item.id, contactsDraft);
       await api.setItemLocations(item.id, locsDraft);
@@ -827,6 +905,9 @@ function ItemDetail({ ctx, item }) {
                   <input type="date" className="datepick" value={dueDraft} onChange={(e) => setDueDraft(e.target.value)}
                     onClick={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()} />
                 </div>
+                <div className="full">
+                  <label className="chk"><input type="checkbox" checked={recurDraft} onChange={(e) => setRecurDraft(e.target.checked)} /> Recurring — set this up regularly</label>
+                </div>
               </div>
               <div className="actions">
                 <button className="btn primary" disabled={busy} onClick={saveEdit}><Ico d={I.check} /> Save</button>
@@ -836,7 +917,7 @@ function ItemDetail({ ctx, item }) {
             </div>
           ) : (
             <>
-              <h3>{item.title}</h3>
+              <h3>{item.title}{item.is_recurring && <span className="tag recur" style={{ marginLeft: 8, verticalAlign: "middle" }}><Ico d={I.loop} />Recurring</span>}</h3>
               <div className="muted">Created by {profileFor(item.created_by, profiles).name} · {ago(item.created_at)}</div>
               {banner}
               <div className="actions">
@@ -978,7 +1059,7 @@ function EmailAttachment({ item }) {
    ============================================================ */
 function NewItem({ ctx }) {
   const { projects, contacts, locations, me } = ctx;
-  const [form, setForm] = useState({ title: "", description: "", project_id: "", contact_ids: [], location_ids: [], priority: "normal", due_date: "", assigned_to: "nicole" });
+  const [form, setForm] = useState({ title: "", description: "", project_id: "", contact_ids: [], location_ids: [], priority: "normal", due_date: "", assigned_to: "nicole", is_recurring: false });
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setForm({ ...form, [k]: v });
   const toggle = (k, id) => setForm((f) => ({ ...f, [k]: f[k].includes(id) ? f[k].filter((x) => x !== id) : [...f[k], id] }));
@@ -994,6 +1075,7 @@ function NewItem({ ctx }) {
       location_ids: form.location_ids,
       priority: form.priority || null,
       due_date: form.due_date || null,
+      is_recurring: form.is_recurring,
       created_by: me,
       assigned_to: form.assigned_to,
     };
@@ -1031,6 +1113,7 @@ function NewItem({ ctx }) {
             <select value={form.assigned_to} onChange={(e) => set("assigned_to", e.target.value)}>
               <option value="nicole">Nicole Sciacca</option><option value="stephane">Stephane (myself)</option>
             </select></div>
+          <div className="full"><label className="chk"><input type="checkbox" checked={form.is_recurring} onChange={(e) => set("is_recurring", e.target.checked)} /> Recurring — set this up regularly</label></div>
         </div>
         <div className="actions">
           <button className="btn primary" disabled={busy} onClick={create}><Ico d={I.add} /> Create item</button>

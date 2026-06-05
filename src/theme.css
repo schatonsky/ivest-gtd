@@ -388,3 +388,34 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 .nf-name{flex:1;text-align:left;background:none;border:none;color:var(--accent,#3B6CF0);font-size:13px;font-weight:500;cursor:pointer;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nf-name:hover{text-decoration:underline}
 [data-theme="dark"] .notefile{background:#10151E;border-color:var(--line)}
+
+/* Content width control */
+.content.width-comfortable{max-width:920px}
+.content.width-wide{max-width:1120px}
+.content.width-full{max-width:none}
+.width-ctl{display:flex;gap:3px;background:#F2F4F7;border:1px solid var(--line);border-radius:8px;padding:3px;margin-bottom:8px}
+.width-ctl button{flex:1;background:none;border:none;border-radius:6px;font-size:11px;font-weight:600;color:var(--faint);padding:5px 4px;cursor:pointer}
+.width-ctl button.on{background:var(--white);color:var(--accent-d);box-shadow:var(--sh-sm)}
+[data-theme="dark"] .width-ctl{background:#10151E;border-color:var(--line)}
+[data-theme="dark"] .width-ctl button.on{background:#1B212C;color:#9DB2F0}
+
+/* Global search (top bar) */
+.gsearch{position:relative;width:min(340px,38vw)}
+.gsearch>input{width:100%;height:34px;border:1px solid var(--line-2);border-radius:9px;background:var(--white);padding:0 12px;font-size:13px;color:var(--ink)}
+.gsearch>input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.gsearch-pop{position:absolute;top:40px;left:0;right:0;background:var(--white);border:1px solid var(--line);border-radius:10px;box-shadow:var(--sh-md);z-index:40;overflow:hidden;max-height:60vh;overflow-y:auto}
+.gsearch-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line);padding:9px 12px;cursor:pointer}
+.gsearch-row:last-child{border-bottom:none}
+.gsearch-row:hover{background:#F2F4F7}
+.gs-ttl{flex:1;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gsearch-empty{padding:12px;color:var(--faint);font-size:13px}
+[data-theme="dark"] .gsearch>input{background:#10151E;border-color:var(--line)}
+[data-theme="dark"] .gsearch-pop{background:#161C26}
+[data-theme="dark"] .gsearch-row:hover{background:#1B212C}
+
+/* Recurring chip + checkbox label */
+.tag.recur{display:inline-flex;align-items:center;gap:4px;background:#EEF2FF;color:#4338CA;border:1px solid #C9D8FB;font-weight:600}
+.tag.recur svg{width:12px;height:12px}
+[data-theme="dark"] .tag.recur{background:rgba(99,102,241,.16);color:#A9B7F5;border-color:rgba(99,102,241,.4)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--body);cursor:pointer}
+.chk input{width:16px;height:16px;cursor:pointer}
