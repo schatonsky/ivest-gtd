@@ -385,7 +385,8 @@ function Dashboard({ ctx }) {
           </div>
           <Group title="Needs my answer" icon={I.flag} arr={by("awaiting_principal")} ctx={ctx} empty="Nothing waiting on you right now." tone="#E0A82E" />
           <Group title="To review" icon={I.check} arr={by("pending_review")} ctx={ctx} empty="Nothing to review right now." tone="#9F5CF0" />
-          <Group title="In Nicole's hands" icon={I.dots} arr={items.filter((i) => ["open", "in_progress", "follow_up"].includes(i.status))} ctx={ctx} empty="Nothing in progress." tone="#3B6CF0" />
+          <Group title="Follow-up required" icon={I.loop} arr={by("follow_up")} ctx={ctx} empty="No follow-ups outstanding." tone="#F43F5E" />
+          <Group title="In Nicole's hands" icon={I.dots} arr={items.filter((i) => ["open", "in_progress"].includes(i.status))} ctx={ctx} empty="Nothing in progress." tone="#3B6CF0" />
         </>
       ) : (
         <>
