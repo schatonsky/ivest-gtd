@@ -419,3 +419,8 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 [data-theme="dark"] .tag.recur{background:rgba(99,102,241,.16);color:#A9B7F5;border-color:rgba(99,102,241,.4)}
 .chk{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--body);cursor:pointer}
 .chk input{width:16px;height:16px;cursor:pointer}
+
+/* Chat "new messages" nav indicator */
+.nav .badge.chatnew{background:#0E9F6E;color:#fff;display:inline-flex;align-items:center;gap:5px;padding:1px 9px}
+.nav .badge.chatnew .bdot{width:6px;height:6px;border-radius:50%;background:#fff;animation:bpulse 1.6s ease-in-out infinite}
+@keyframes bpulse{0%,100%{opacity:1}50%{opacity:.35}}

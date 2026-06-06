@@ -242,7 +242,7 @@ export default function App() {
                 <span className={"badge " + (myQueue ? "" : "zero")}>{myQueue}</span>
               )}
               {n.key === "chat" && chatUnread > 0 && (
-                <span className="badge">{chatUnread}</span>
+                <span className="badge chatnew"><span className="bdot" />{chatUnread} new</span>
               )}
             </button>
           ))}
@@ -1209,15 +1209,19 @@ function Projects({ ctx }) {
 function Contacts({ ctx }) {
   const { contacts, items, projects, isPrincipal } = ctx;
   const [sort, setSort] = useState("custom");
+  const [showEmpty, setShowEmpty] = useState(false);
   const openCount = (id) => items.filter((i) => (i.contact_ids || []).includes(id) && i.status !== "closed").length;
+  const totalCount = (id) => items.filter((i) => (i.contact_ids || []).includes(id)).length;
+  const hiddenCount = contacts.filter((c) => totalCount(c.id) === 0).length;
   const projsFor = (cid) => {
     const ids = [...new Set(items.filter((i) => (i.contact_ids || []).includes(cid)).map((i) => i.project_id).filter(Boolean))];
     return ids.map((id) => projects.find((p) => p.id === id)).filter(Boolean);
   };
   const reorder = async (arr) => { await Promise.all(arr.map((c, i) => api.updateContactOrder(c.id, i + 1))); await ctx.reload(); };
-  const move = (i, dir) => {
-    const arr = contacts.slice(); const j = i + dir;
-    if (j < 0 || j >= arr.length) return;
+  const move = (c, dir) => {
+    const arr = contacts.slice();
+    const i = arr.findIndex((x) => x.id === c.id); const j = i + dir;
+    if (i < 0 || j < 0 || j >= arr.length) return;
     const t = arr[i]; arr[i] = arr[j]; arr[j] = t; reorder(arr);
   };
   const add = async () => {
@@ -1256,6 +1260,7 @@ function Contacts({ ctx }) {
         {contacts.length === 0 && <div className="empty">No contacts yet.</div>}
         {(() => {
           let list = contacts.slice();
+          if (!showEmpty) list = list.filter((c) => totalCount(c.id) > 0);
           if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name));
           else if (sort === "count") list.sort((a, b) => openCount(b.id) - openCount(a.id));
           return list.map((c, idx) => {
@@ -1264,8 +1269,8 @@ function Contacts({ ctx }) {
               <div key={c.id} className="proj-row">
                 {sort === "custom" && (
                   <span className="reorder">
-                    <button className="btn ghost sm" disabled={idx === 0} onClick={() => move(idx, -1)} title="Move up">↑</button>
-                    <button className="btn ghost sm" disabled={idx === list.length - 1} onClick={() => move(idx, 1)} title="Move down">↓</button>
+                    <button className="btn ghost sm" disabled={idx === 0} onClick={() => move(c, -1)} title="Move up">↑</button>
+                    <button className="btn ghost sm" disabled={idx === list.length - 1} onClick={() => move(c, 1)} title="Move down">↓</button>
                   </span>
                 )}
                 <span className="pc" style={{ background: colorFor(c.id), borderRadius: "50%" }} />
@@ -1286,6 +1291,11 @@ function Contacts({ ctx }) {
             );
           });
         })()}
+        {hiddenCount > 0 && (
+          <button className="btn ghost sm" style={{ margin: "10px 12px" }} onClick={() => setShowEmpty(!showEmpty)}>
+            {showEmpty ? "Hide" : "Show"} {hiddenCount} contact{hiddenCount === 1 ? "" : "s"} with no actions
+          </button>
+        )}
       </div>
     </>
   );
