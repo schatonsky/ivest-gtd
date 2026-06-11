@@ -6,6 +6,7 @@ export const STATES = {
   awaiting_principal: { label: "Awaiting Principal",     owner: "stephane" },
   pending_review:     { label: "Done — Pending Review",  owner: "stephane" },
   follow_up:          { label: "Follow-up Required",     owner: "nicole" },
+  on_hold:            { label: "On Hold",                owner: "nicole" },
   closed:             { label: "Closed",                 owner: null },
 };
 
