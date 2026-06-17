@@ -89,8 +89,15 @@ export async function listItems() {
   }));
 }
 export async function setItemContacts(itemId, ids) {
-  await supabase.from("action_contacts").delete().eq("action_item_id", itemId);
-  if (ids && ids.length) await supabase.from("action_contacts").insert(ids.map((cid) => ({ action_item_id: itemId, contact_id: cid })));
+  // Diff-based so we only touch links that actually change — a blanket delete+insert
+  // would briefly remove kept links and trip the "no open actions" auto-prune trigger.
+  const want = ids || [];
+  const { data } = await supabase.from("action_contacts").select("contact_id").eq("action_item_id", itemId);
+  const cur = (data || []).map((r) => r.contact_id);
+  const toAdd = want.filter((id) => !cur.includes(id));
+  const toRemove = cur.filter((id) => !want.includes(id));
+  if (toRemove.length) await supabase.from("action_contacts").delete().eq("action_item_id", itemId).in("contact_id", toRemove);
+  if (toAdd.length) await supabase.from("action_contacts").insert(toAdd.map((cid) => ({ action_item_id: itemId, contact_id: cid })));
 }
 export async function setItemLocations(itemId, ids) {
   await supabase.from("action_locations").delete().eq("action_item_id", itemId);

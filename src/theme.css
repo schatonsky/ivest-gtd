@@ -426,3 +426,14 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 .nav .badge.chatnew{background:#0E9F6E;color:#fff;display:inline-flex;align-items:center;gap:5px;padding:1px 9px}
 .nav .badge.chatnew .bdot{width:6px;height:6px;border-radius:50%;background:#fff;animation:bpulse 1.6s ease-in-out infinite}
 @keyframes bpulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* Inline edit in the Details side panel */
+.side-h{display:flex;align-items:center}
+.kv.col{flex-direction:column;align-items:stretch;gap:8px}
+.kv.col .k{text-align:left}
+.kv .v select, .kv .v input[type="date"]{min-width:148px;max-width:172px}
+
+/* Recently added strip */
+.ra-src{display:inline-flex;color:var(--faint);flex:none}
+.ra-src svg{width:15px;height:15px}
+.ra-proj{color:var(--faint)}

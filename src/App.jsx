@@ -374,6 +374,7 @@ function Dashboard({ ctx }) {
       </div>
 
       <WhatsNew ctx={ctx} />
+      <RecentlyAdded ctx={ctx} />
 
       {isPrincipal ? (
         <>
@@ -387,6 +388,7 @@ function Dashboard({ ctx }) {
           <Group title="To review" icon={I.check} arr={by("pending_review")} ctx={ctx} empty="Nothing to review right now." tone="#9F5CF0" />
           <Group title="Follow-up required" icon={I.loop} arr={by("follow_up")} ctx={ctx} empty="No follow-ups outstanding." tone="#F43F5E" />
           <Group title="In Nicole's hands" icon={I.dots} arr={items.filter((i) => ["open", "in_progress"].includes(i.status))} ctx={ctx} empty="Nothing in progress." tone="#3B6CF0" />
+          <Group title="Closed" icon={I.check} arr={by("closed")} ctx={ctx} empty="Nothing closed yet." tone="#98A2B3" startOpen={false} />
         </>
       ) : (
         <>
@@ -400,6 +402,7 @@ function Dashboard({ ctx }) {
           <Group title="In progress" icon={I.dots} arr={by("in_progress")} ctx={ctx} empty="Nothing in progress." tone="#0EA5E9" />
           <Group title="Follow-up from Stephane" icon={I.loop} arr={by("follow_up")} ctx={ctx} empty="No follow-ups." tone="#F43F5E" />
           <Group title="Waiting on Stephane" icon={I.clock} arr={by("awaiting_principal")} ctx={ctx} empty="Nothing waiting on Stephane." tone="#E0A82E" />
+          <Group title="Closed" icon={I.check} arr={by("closed")} ctx={ctx} empty="Nothing closed yet." tone="#98A2B3" startOpen={false} />
         </>
       )}
     </>
@@ -454,6 +457,33 @@ function WhatsNew({ ctx }) {
           <span className="wn-txt"><b>{first(c.author)}</b> {verb(c.type)} “{itemById[c.action_item_id].title}”</span>
           <span className="wn-when">{ago(c.created_at)}</span>
           <button className="wn-tick" title="Mark read" onClick={(e) => dismiss(e, c.action_item_id)}><Ico d={I.check} /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================================
+   Recently added — newest actions, to confirm they came in
+   ============================================================ */
+function RecentlyAdded({ ctx }) {
+  const { items, projects } = ctx;
+  const cutoff = Date.now() - 7 * 86400000;
+  const recent = items
+    .filter((i) => new Date(i.created_at).getTime() >= cutoff)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 8);
+  if (!recent.length) return null;
+  const projName = (id) => (projects.find((p) => p.id === id) || {}).name || "";
+  return (
+    <div className="whatsnew">
+      <div className="wn-head"><Ico d={I.clock} /> Recently added <span className="count">{recent.length}</span></div>
+      {recent.map((i) => (
+        <div key={i.id} className="wn-row" onClick={() => ctx.open(i.id)}>
+          <span className="ra-src" title={i.source === "email" ? "From email" : "Added manually"}><Ico d={i.source === "email" ? I.mail : I.pencil} /></span>
+          <span className="wn-txt">{i.title}{projName(i.project_id) ? <span className="ra-proj"> · {projName(i.project_id)}</span> : ""}</span>
+          <StateBadge s={i.status} />
+          <span className="wn-when">{ago(i.created_at)}</span>
         </div>
       ))}
     </div>
@@ -633,6 +663,8 @@ function ItemsList({ ctx }) {
     list = list.slice().sort((a, b) => ((rank[a.priority] ?? 3) - (rank[b.priority] ?? 3)) || (new Date(b.updated_at) - new Date(a.updated_at)));
   } else if (sort === "due") {
     list = list.slice().sort((a, b) => (a.due_date ? 0 : 1) - (b.due_date ? 0 : 1) || String(a.due_date || "").localeCompare(String(b.due_date || "")));
+  } else if (sort === "added") {
+    list = list.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }
   const active = list.filter((i) => i.status !== "closed");
   const closed = list.filter((i) => i.status === "closed");
@@ -669,6 +701,7 @@ function ItemsList({ ctx }) {
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value)}>
           <option value="recent">Sort: Recent</option>
+          <option value="added">Sort: Recently added</option>
           <option value="priority">Sort: Priority</option>
           <option value="due">Sort: Due date</option>
         </select>
@@ -711,6 +744,8 @@ function ItemDetail({ ctx, item }) {
   const [prioDraft, setPrioDraft] = useState("");
   const [dueDraft, setDueDraft] = useState("");
   const [recurDraft, setRecurDraft] = useState(false);
+  const [sideEdit, setSideEdit] = useState(false);
+  const [asgDraft, setAsgDraft] = useState("");
   const [note, setNote] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteFiles, setNoteFiles] = useState([]);
@@ -821,6 +856,27 @@ function ItemDetail({ ctx, item }) {
       setEditing(false); ctx.notify("Item updated");
     });
   };
+  const startSideEdit = () => {
+    setProjDraft(item.project_id || "");
+    setContactsDraft(item.contact_ids || []);
+    setLocsDraft(item.location_ids || []);
+    setPrioDraft(item.priority || "");
+    setDueDraft(item.due_date || "");
+    setAsgDraft(item.assigned_to || "nicole");
+    setSideEdit(true);
+  };
+  const saveSide = () => run(async () => {
+    await api.updateItem(item.id, {
+      project_id: projDraft || null,
+      priority: prioDraft || null,
+      due_date: dueDraft || null,
+      assigned_to: asgDraft || "nicole",
+    });
+    await api.setItemContacts(item.id, contactsDraft);
+    await api.setItemLocations(item.id, locsDraft);
+    await api.logActivity(item.id, me, "Edited details");
+    setSideEdit(false); ctx.notify("Details updated");
+  });
 
   // lifecycle actions — available to both roles, driven by state
   const actions = [];
@@ -1010,15 +1066,49 @@ function ItemDetail({ ctx, item }) {
         </div>
 
         <div className="panel">
-          <div className="side-h">Details</div>
+          <div className="side-h">Details
+            <span style={{ flex: 1 }} />
+            {!sideEdit
+              ? <button className="linkbtn" onClick={startSideEdit}>Edit</button>
+              : <button className="linkbtn" onClick={() => setSideEdit(false)}>Cancel</button>}
+          </div>
           <div className="kv"><span className="k">Owner now</span><span className="v">{owner ? profileFor(owner, profiles).name : "—"}</span></div>
-          <div className="kv"><span className="k">Assigned to</span><span className="v">{profileFor(item.assigned_to, profiles).name}</span></div>
-          <div className="kv"><span className="k">Project</span><span className="v">{proj ? <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span> : "—"}</span></div>
-          <div className="kv"><span className="k">Contacts</span><span className="v">{itemContacts.length ? itemContacts.map((c) => c.name).join(", ") : "—"}</span></div>
-          <div className="kv"><span className="k">Locations</span><span className="v">{itemLocations.length ? itemLocations.map((l) => l.name).join(", ") : "—"}</span></div>
+          {sideEdit ? (
+            <>
+              <div className="kv"><span className="k">Assigned to</span><span className="v">
+                <select value={asgDraft} onChange={(e) => setAsgDraft(e.target.value)}>
+                  <option value="nicole">Nicole Sciacca</option><option value="stephane">Stephane Chatonsky</option>
+                </select></span></div>
+              <div className="kv"><span className="k">Project</span><span className="v">
+                <select value={projDraft} onChange={(e) => setProjDraft(e.target.value)}>
+                  <option value="">— none —</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select></span></div>
+              <div className="kv col"><span className="k">Contacts</span>
+                <ChipMulti options={contacts} selected={contactsDraft} onToggle={toggleDraft(setContactsDraft)} empty="No contacts yet" /></div>
+              <div className="kv col"><span className="k">Locations</span>
+                <ChipMulti options={locations} selected={locsDraft} onToggle={toggleDraft(setLocsDraft)} empty="No locations yet" /></div>
+              <div className="kv"><span className="k">Priority</span><span className="v">
+                <select value={prioDraft} onChange={(e) => setPrioDraft(e.target.value)}>
+                  <option value="">— blank —</option><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option>
+                </select></span></div>
+              <div className="kv"><span className="k">Due</span><span className="v">
+                <input type="date" className="datepick" value={dueDraft} onChange={(e) => setDueDraft(e.target.value)}
+                  onClick={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()} /></span></div>
+              <div className="actions" style={{ marginTop: 10 }}>
+                <button className="btn primary sm" disabled={busy} onClick={saveSide}><Ico d={I.check} /> Save</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="kv"><span className="k">Assigned to</span><span className="v">{profileFor(item.assigned_to, profiles).name}</span></div>
+              <div className="kv"><span className="k">Project</span><span className="v">{proj ? <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span> : "—"}</span></div>
+              <div className="kv"><span className="k">Contacts</span><span className="v">{itemContacts.length ? itemContacts.map((c) => c.name).join(", ") : "—"}</span></div>
+              <div className="kv"><span className="k">Locations</span><span className="v">{itemLocations.length ? itemLocations.map((l) => l.name).join(", ") : "—"}</span></div>
+              <div className="kv"><span className="k">Priority</span><span className="v">{item.priority || "—"}</span></div>
+              <div className="kv"><span className="k">Due</span><span className="v">{item.due_date || "—"}</span></div>
+            </>
+          )}
           <div className="kv"><span className="k">Source</span><span className="v">{item.source === "email" ? (safeUrl(item.source_email_url) ? <a href={safeUrl(item.source_email_url)} target="_blank" rel="noreferrer">Open in Mail ↗</a> : "Email") : "Created manually"}</span></div>
-          <div className="kv"><span className="k">Priority</span><span className="v">{item.priority || "—"}</span></div>
-          <div className="kv"><span className="k">Due</span><span className="v">{item.due_date || "—"}</span></div>
           <div className="act-feed">
             <div className="side-h">Activity</div>
             {ctx.activity.filter((a) => a.action_item_id === item.id).map((a) => (
