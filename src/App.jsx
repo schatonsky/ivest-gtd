@@ -382,7 +382,6 @@ function Dashboard({ ctx }) {
             <Stat n={by("awaiting_principal").length} l="Need my answer" to="awaiting_principal" tone="#E0A82E" />
             <Stat n={by("pending_review").length} l="To review" to="pending_review" tone="#9F5CF0" />
             <Stat n={by("open").length + by("in_progress").length} l="With Nicole" to="in_progress" tone="#3B6CF0" />
-            <Stat n={by("closed").length} l="Closed" to="closed" tone="#98A2B3" />
           </div>
           <Group title="Needs my answer" icon={I.flag} arr={by("awaiting_principal")} ctx={ctx} empty="Nothing waiting on you right now." tone="#E0A82E" />
           <Group title="To review" icon={I.check} arr={by("pending_review")} ctx={ctx} empty="Nothing to review right now." tone="#9F5CF0" />
@@ -467,23 +466,30 @@ function WhatsNew({ ctx }) {
    Recently added — newest actions, to confirm they came in
    ============================================================ */
 function RecentlyAdded({ ctx }) {
-  const { items, projects } = ctx;
+  const { items, projects, reads, me } = ctx;
+  const seen = new Set((reads || []).filter((r) => r.user_key === me).map((r) => r.action_item_id));
   const cutoff = Date.now() - 7 * 86400000;
   const recent = items
-    .filter((i) => i.status !== "closed" && new Date(i.created_at).getTime() >= cutoff)
+    .filter((i) => i.status !== "closed" && !seen.has(i.id) && new Date(i.created_at).getTime() >= cutoff)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, 8);
   if (!recent.length) return null;
   const projName = (id) => (projects.find((p) => p.id === id) || {}).name || "";
+  const dismiss = (e, id) => { e.stopPropagation(); api.markItemSeen(me, id).then(() => ctx.reload()); };
+  const markAll = () => Promise.all(recent.map((i) => api.markItemSeen(me, i.id))).then(() => ctx.reload());
   return (
     <div className="whatsnew">
-      <div className="wn-head"><Ico d={I.clock} /> Recently added <span className="count">{recent.length}</span></div>
+      <div className="wn-head"><Ico d={I.clock} /> Recently added <span className="count">{recent.length}</span>
+        <span style={{ flex: 1 }} />
+        <button className="linkbtn" onClick={markAll}>Mark all seen</button>
+      </div>
       {recent.map((i) => (
         <div key={i.id} className="wn-row" onClick={() => ctx.open(i.id)}>
           <span className="ra-src" title={i.source === "email" ? "From email" : "Added manually"}><Ico d={i.source === "email" ? I.mail : I.pencil} /></span>
           <span className="wn-txt">{i.title}{projName(i.project_id) ? <span className="ra-proj"> · {projName(i.project_id)}</span> : ""}</span>
           <StateBadge s={i.status} />
           <span className="wn-when">{ago(i.created_at)}</span>
+          <button className="wn-tick" title="Mark as seen (stays in the app)" onClick={(e) => dismiss(e, i.id)}><Ico d={I.check} /></button>
         </div>
       ))}
     </div>
