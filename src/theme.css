@@ -387,8 +387,8 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 /* Private note attachments */
 .notefiles{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .notefile{display:flex;align-items:center;gap:10px;background:#FAFBFC;border:1px solid var(--line);border-radius:8px;padding:7px 10px}
-.nf-name{flex:1;text-align:left;background:none;border:none;color:var(--accent,#3B6CF0);font-size:13px;font-weight:500;cursor:pointer;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nf-name:hover{text-decoration:underline}
+.nf-name{flex:1;min-width:0;text-align:left;font-size:13px;font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nf-act{flex:none}
 [data-theme="dark"] .notefile{background:#10151E;border-color:var(--line)}
 
 /* Content width control */

@@ -782,6 +782,13 @@ function ItemDetail({ ctx, item }) {
     ctx.notify("File attached");
   };
   const openNoteFile = async (f) => { const url = await api.noteFileUrl(f.storage_path); if (url) window.open(url, "_blank", "noreferrer"); };
+  const downloadNoteFile = async (f) => {
+    const url = await api.noteFileUrl(f.storage_path, f.file_name);
+    if (!url) { ctx.notify("Couldn't get the file"); return; }
+    const a = document.createElement("a");
+    a.href = url; a.download = f.file_name; a.rel = "noreferrer";
+    document.body.appendChild(a); a.click(); a.remove();
+  };
   const removeNoteFile = async (f) => {
     if (!window.confirm("Remove this attachment?")) return;
     await api.deleteNoteFile(f);
@@ -1061,7 +1068,9 @@ function ItemDetail({ ctx, item }) {
                 <div className="notefiles">
                   {noteFiles.map((f) => (
                     <div key={f.id} className="notefile">
-                      <button className="nf-name" onClick={() => openNoteFile(f)} title="Open attachment">{f.file_name}</button>
+                      <span className="nf-name" title={f.file_name}>{f.file_name}</span>
+                      <button className="linkbtn nf-act" onClick={() => downloadNoteFile(f)}>Download</button>
+                      <button className="linkbtn nf-act" onClick={() => openNoteFile(f)}>Open</button>
                       <button className="linkbtn" onClick={() => removeNoteFile(f)}>Remove</button>
                     </div>
                   ))}

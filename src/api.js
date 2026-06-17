@@ -257,8 +257,10 @@ export async function uploadNoteFile(itemId, file) {
   const { error } = await supabase.from("private_note_files").insert({ action_item_id: itemId, file_name: file.name, storage_path: path });
   return { error };
 }
-export async function noteFileUrl(path) {
-  const { data } = await supabase.storage.from("note-files").createSignedUrl(path, 3600);
+export async function noteFileUrl(path, download) {
+  // download = filename → signed URL serves with Content-Disposition: attachment (forces a download)
+  const opts = download ? { download } : undefined;
+  const { data } = await supabase.storage.from("note-files").createSignedUrl(path, 3600, opts);
   return data ? data.signedUrl : null;
 }
 export async function deleteNoteFile(f) {
