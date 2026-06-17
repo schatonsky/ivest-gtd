@@ -470,7 +470,7 @@ function RecentlyAdded({ ctx }) {
   const { items, projects } = ctx;
   const cutoff = Date.now() - 7 * 86400000;
   const recent = items
-    .filter((i) => new Date(i.created_at).getTime() >= cutoff)
+    .filter((i) => i.status !== "closed" && new Date(i.created_at).getTime() >= cutoff)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, 8);
   if (!recent.length) return null;
