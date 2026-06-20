@@ -160,7 +160,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .email-ico svg{width:17px;height:17px}
 .email-subj{font-weight:600;font-size:13.5px;color:var(--ink)}
 .email-meta{font-size:11.5px;color:var(--faint);margin-top:2px}
-.email-body{padding:14px 16px;font-size:13px;color:var(--body);line-height:1.6;white-space:pre-wrap;max-height:260px;overflow:auto}
+.email-body{padding:14px 16px;font-size:13px;color:var(--body);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow:auto}
 .email-foot{padding:8px 16px;border-top:1px solid var(--line);font-size:11px;color:var(--faint);background:rgba(0,0,0,.015)}
 [data-theme="dark"] .email-card{background:#10151E;border-color:var(--line-2)}
 [data-theme="dark"] .email-ico{background:rgba(81,128,247,.16);color:#A6BDFF}
@@ -342,7 +342,7 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
   .panel{padding:18px}
   .filters{gap:8px}
   .filters select{flex:1 1 44%}
-  .email-body{max-height:200px}
+  .email-body{max-height:140px}
 }
 
 /* What's new (dashboard) */
@@ -437,3 +437,12 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 .ra-src{display:inline-flex;color:var(--faint);flex:none}
 .ra-src svg{width:15px;height:15px}
 .ra-proj{color:var(--faint)}
+
+/* Custom hover tooltip */
+.has-tip{position:relative}
+.has-tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:#1B2230;color:#fff;font-size:12px;font-weight:400;line-height:1.45;text-align:left;padding:8px 11px;border-radius:8px;
+  width:max-content;max-width:240px;white-space:normal;box-shadow:0 6px 18px rgba(0,0,0,.32);
+  opacity:0;visibility:hidden;transition:opacity .12s ease;pointer-events:none;z-index:60}
+.has-tip:hover::after{opacity:1;visibility:visible}
+[data-theme="dark"] .has-tip::after{background:#2A323F;border:1px solid #3A4453}
