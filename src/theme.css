@@ -649,3 +649,49 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 [data-theme="light"] .sb-foot .width-ctl{background:#1A2942;border-color:#26344C}
 [data-theme="light"] .sb-foot .width-ctl button{color:#9DB0D0}
 [data-theme="light"] .sb-foot .width-ctl button.on{background:#0F1A30;color:#fff}
+
+/* Mobile bottom tab bar */
+.botbar{display:none}
+@media(max-width:760px){
+  .botbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:50;background:#101F3D;border-top:1px solid #1E2A44;padding:6px 4px;padding-bottom:calc(6px + env(safe-area-inset-bottom))}
+  .botbar .bb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;color:#8595B2;padding:4px 0;cursor:pointer;font-size:9.5px;font-weight:600}
+  .botbar .bb svg{width:21px;height:21px}
+  .botbar .bb.on{color:#fff}
+  .botbar .bb-ic{position:relative;display:inline-flex}
+  .botbar .bb-dot{position:absolute;top:-1px;right:-4px;width:7px;height:7px;border-radius:50%;background:#0E9F6E}
+  .content{padding-bottom:80px}
+  .topbar .hamburger{display:none}
+}
+
+/* Floating New button (mobile) */
+.fab{display:none}
+/* Search behind an icon (mobile) */
+.topsearch{display:none}
+/* Collapsible email card */
+.email-toggle{cursor:pointer}
+.email-tw{display:inline-flex;align-items:center;color:var(--faint);margin-left:8px;flex:none}
+.email-tw svg{width:16px;height:16px;transform:rotate(90deg);transition:transform .15s ease}
+.email-tw.open svg{transform:rotate(-90deg)}
+.email-card.collapsed .email-head{border-bottom:none}
+
+/* Swipe-to-reveal actions on item rows */
+.swipe-wrap{position:relative;overflow:hidden}
+.swipe-wrap .item{background:var(--white)}
+.swipe-actions{position:absolute;top:0;right:0;bottom:0;display:flex}
+.swa{border:none;color:#fff;font-size:12.5px;font-weight:600;flex:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.swa-open{background:#475569}
+
+@media(max-width:760px){
+  .fab{display:flex;align-items:center;justify-content:center;position:fixed;right:16px;bottom:76px;z-index:55;width:54px;height:54px;border-radius:50%;background:var(--accent);color:#fff;border:none;box-shadow:0 6px 18px rgba(59,108,240,.45);cursor:pointer}
+  .fab svg{width:26px;height:26px}
+  .topsearch{display:inline-flex}
+  .gsearch{display:none}
+  .gsearch.mopen{display:block;position:fixed;top:54px;left:12px;right:12px;width:auto;z-index:46}
+  .gsearch.mopen>input{width:100%}
+  /* Bigger tap targets */
+  .step-dot{width:30px;height:30px}
+  .step-dot svg{width:16px;height:16px}
+  .stepper .step::before{top:14px}
+  .stepper .step-lbl{font-size:10px}
+  .panel .actions .btn,.detail-head .btn,.qa .btn{min-height:44px}
+}

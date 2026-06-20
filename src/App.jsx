@@ -135,6 +135,7 @@ export default function App() {
   const [currentId, setCurrentId] = useState(null);
   const [toast, setToast] = useState("");
   const [navOpen, setNavOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const allFilter = { status: "all", project: "all", contact: "all", location: "all" };
   const [itemsFilter, setItemsFilter] = useState(allFilter);
   const toastTimer = useRef(null);
@@ -310,7 +311,8 @@ export default function App() {
         <div className="topbar">
           <button className="btn ghost sm hamburger" aria-label="Menu" onClick={() => setNavOpen(true)}><Ico d={I.menu} /></button>
           <h1>{titles[view]}</h1>
-          <GlobalSearch ctx={ctx} />
+          <button className="btn ghost sm topsearch" aria-label="Search" onClick={() => setSearchOpen((s) => !s)}><Ico d={I.search} /></button>
+          <GlobalSearch ctx={ctx} mobileOpen={searchOpen} />
           <div className="spacer" />
           <button className="btn ghost sm" onClick={() => applyTheme(theme === "dark" ? "light" : "dark")}>
             <Ico d={theme === "dark" ? I.sun : I.moon} />
@@ -340,6 +342,25 @@ export default function App() {
           {view === "audit" && isPrincipal && <Audit ctx={ctx} />}
         </div>
       </div>
+
+      <nav className="botbar">
+        {[
+          { key: "plate", label: "Plate", icon: I.plate },
+          { key: "items", label: "Items", icon: I.items },
+          { key: "dashboard", label: "Home", icon: I.dashboard },
+          { key: "chat", label: "Chat", icon: I.chat, badge: chatUnread },
+        ].map((t) => (
+          <button key={t.key} className={"bb" + (view === t.key ? " on" : "")}
+            onClick={() => { setCurrentId(null); if (t.key === "items") setItemsFilter(allFilter); setView(t.key); setNavOpen(false); }}>
+            <span className="bb-ic"><Ico d={t.icon} />{t.badge > 0 && <span className="bb-dot" />}</span>
+            <span>{t.label}</span>
+          </button>
+        ))}
+        <button className={"bb" + (["plate", "items", "dashboard", "chat", "detail", "new"].indexOf(view) === -1 ? " on" : "")} onClick={() => setNavOpen(true)}>
+          <span className="bb-ic"><Ico d={I.dots} /></span><span>More</span>
+        </button>
+      </nav>
+      <button className="fab" aria-label="New item" onClick={() => { setCurrentId(null); setView("new"); setNavOpen(false); }}><Ico d={I.add} /></button>
 
       <div className={"toast" + (toast ? " show" : "")}><span className="td" />{toast}</div>
     </div>
@@ -396,24 +417,61 @@ function ItemRow({ it, ctx }) {
   const myRead = (ctx.reads || []).find((r) => r.user_key === ctx.me && r.action_item_id === it.id);
   const seenAt = myRead ? new Date(myRead.last_seen_at).getTime() : 0;
   const unread = (ctx.comments || []).filter((c) => c.action_item_id === it.id && c.author !== ctx.me && new Date(c.created_at).getTime() > seenAt).length;
+
+  // Swipe-to-reveal (touch only): slide a row left to show Open + a safe one-step action.
+  const [dx, setDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const st = useRef({ x: 0, y: 0, base: 0, dir: null });
+  const quick = (() => {
+    if (ownerOf(it) !== ctx.me) return null;
+    if (it.status === "open") return { label: "Start", to: "in_progress", color: "#0EA5E9" };
+    if (it.status === "in_progress") return { label: "Review", to: "pending_review", color: "#9F5CF0" };
+    if (it.status === "follow_up") return { label: "Resume", to: "in_progress", color: "#0EA5E9" };
+    if (it.status === "pending_review" && ctx.isPrincipal) return { label: "Close", to: "closed", color: "#0E9F6E" };
+    return null;
+  })();
+  const W = quick ? 144 : 76;
+  const onStart = (e) => { const t = e.touches[0]; st.current = { x: t.clientX, y: t.clientY, base: dx, dir: null }; };
+  const onMove = (e) => {
+    const t = e.touches[0], s = st.current;
+    const ddx = t.clientX - s.x, ddy = t.clientY - s.y;
+    if (!s.dir) { if (Math.abs(ddx) > 8 && Math.abs(ddx) > Math.abs(ddy)) { s.dir = "h"; setDragging(true); } else if (Math.abs(ddy) > 8) s.dir = "v"; }
+    if (s.dir === "h") setDx(Math.max(-W, Math.min(0, s.base + ddx)));
+  };
+  const onEnd = () => { setDragging(false); setDx(dx < -W / 2 ? -W : 0); };
+  const doQuick = async (e) => {
+    e.stopPropagation(); setDx(0);
+    await api.setStatus(it, quick.to, "Status changed to " + STATES[quick.to].label, ctx.me);
+    ctx.reload();
+  };
+  const onRowClick = () => { if (dx < 0) { setDx(0); return; } ctx.open(it.id); };
+
   return (
-    <div className="item striped" style={{ borderLeftColor: STATE_COLOR[it.status] || "transparent" }} onClick={() => ctx.open(it.id)}>
-      <div className="grow">
-        <div className="ttl">
-          {it.priority && <span className={"pri-dot pri-" + it.priority} title={it.priority + " priority"} />}
-          {it.title}
-          {unread > 0 && <span className="newc" title={unread + " new comment" + (unread > 1 ? "s" : "")}><Ico d={I.chat} />{unread}</span>}
-        </div>
-        <div className="meta">
-          <span className="src"><Ico d={it.source === "email" ? I.mail : I.pencil} /> {it.source}</span>
-          {proj && <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span>}
-          {it.is_recurring && <span className="tag recur"><Ico d={I.loop} />Recurring</span>}
-          {contactLabel && <span className="muted">{contactLabel}</span>}
-          <span className="muted">added {ago(it.created_at)}</span>
-        </div>
+    <div className="swipe-wrap">
+      <div className="swipe-actions" style={{ width: W }}>
+        {quick && <button className="swa" style={{ background: quick.color }} onClick={doQuick}>{quick.label}</button>}
+        <button className="swa swa-open" onClick={(e) => { e.stopPropagation(); setDx(0); ctx.open(it.id); }}>Open</button>
       </div>
-      <StateBadge s={it.status} />
-      <span className="chev"><Ico d={I.chev} /></span>
+      <div className="item striped" onClick={onRowClick}
+        onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}
+        style={{ borderLeftColor: STATE_COLOR[it.status] || "transparent", transform: dx ? `translateX(${dx}px)` : undefined, transition: dragging ? "none" : "transform .18s ease" }}>
+        <div className="grow">
+          <div className="ttl">
+            {it.priority && <span className={"pri-dot pri-" + it.priority} title={it.priority + " priority"} />}
+            {it.title}
+            {unread > 0 && <span className="newc" title={unread + " new comment" + (unread > 1 ? "s" : "")}><Ico d={I.chat} />{unread}</span>}
+          </div>
+          <div className="meta">
+            <span className="src"><Ico d={it.source === "email" ? I.mail : I.pencil} /> {it.source}</span>
+            {proj && <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span>}
+            {it.is_recurring && <span className="tag recur"><Ico d={I.loop} />Recurring</span>}
+            {contactLabel && <span className="muted">{contactLabel}</span>}
+            <span className="muted">added {ago(it.created_at)}</span>
+          </div>
+        </div>
+        <StateBadge s={it.status} />
+        <span className="chev"><Ico d={I.chev} /></span>
+      </div>
     </div>
   );
 }
@@ -749,7 +807,7 @@ function EmailUpdate({ ctx }) {
 /* ============================================================
    Global search (top bar)
    ============================================================ */
-function GlobalSearch({ ctx }) {
+function GlobalSearch({ ctx, mobileOpen }) {
   const { items } = ctx;
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -759,7 +817,7 @@ function GlobalSearch({ ctx }) {
     : [];
   const go = (id) => { ctx.open(id); setQ(""); setOpen(false); };
   return (
-    <div className="gsearch">
+    <div className={"gsearch" + (mobileOpen ? " mopen" : "")}>
       <input type="text" value={q} placeholder="Search actions…"
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
@@ -1290,9 +1348,11 @@ function ItemDetail({ ctx, item }) {
 function EmailAttachment({ item }) {
   const body = item.email_body || "";
   const when = item.email_date ? new Date(item.email_date).toLocaleString() : "";
+  // Collapsed by default on phones so the conversation is what you see first.
+  const [open, setOpen] = useState(() => { try { return !window.matchMedia("(max-width:760px)").matches; } catch (e) { return true; } });
   return (
-    <div className="email-card">
-      <div className="email-head">
+    <div className={"email-card" + (open ? "" : " collapsed")}>
+      <div className="email-head email-toggle" onClick={() => setOpen(!open)}>
         <span className="email-ico"><Ico d={I.mail} /></span>
         <div className="grow">
           <div className="email-subj">{item.email_subject || item.title}</div>
@@ -1301,11 +1361,12 @@ function EmailAttachment({ item }) {
           </div>
         </div>
         {safeUrl(item.source_email_url) && (
-          <a className="btn ghost sm" href={safeUrl(item.source_email_url)} target="_blank" rel="noreferrer">Open in Mail ↗</a>
+          <a className="btn ghost sm" href={safeUrl(item.source_email_url)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Open in Mail ↗</a>
         )}
+        <span className={"email-tw" + (open ? " open" : "")}><Ico d={I.chev} /></span>
       </div>
-      {body && <div className="email-body">{body}</div>}
-      <div className="email-foot">Original email · attached automatically when the “GTD” label was applied</div>
+      {open && body && <div className="email-body">{body}</div>}
+      {open && <div className="email-foot">Original email · attached automatically when the “GTD” label was applied</div>}
     </div>
   );
 }
