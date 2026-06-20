@@ -896,7 +896,7 @@ function ItemDetail({ ctx, item }) {
   if (item.status === "open") actions.push(<button key="s" className="btn green" disabled={busy} onClick={() => doStatus("in_progress", "Started work")}><Ico d={I.check} /> Start work</button>);
   if (item.status === "in_progress") actions.push(<button key="c" className="btn green" disabled={busy} onClick={() => doStatus("pending_review", "Marked complete")}><Ico d={I.check} /> Mark complete</button>);
   if (item.status === "follow_up") actions.push(<button key="r" className="btn green" disabled={busy} onClick={() => doStatus("in_progress", "Resumed work")}><Ico d={I.check} /> Resume work</button>);
-  if (["open", "in_progress", "follow_up"].includes(item.status)) actions.push(<button key="q" className="btn amber" disabled={busy} onClick={doAsk}><Ico d={I.flag} /> Ask a question</button>);
+  if (["open", "in_progress", "follow_up"].includes(item.status)) actions.push(<button key="q" className="btn amber" disabled={busy} onClick={doAsk} title={"Sends this as a question to " + (isPrincipal ? "Nicole" : "Stephane") + " and pauses the item until they answer."}><Ico d={I.flag} /> Ask a question</button>);
   if (item.status === "awaiting_principal") actions.push(<button key="an" className="btn primary" onClick={() => answerRef.current?.focus()}><Ico d={I.pencil} /> Answer below</button>);
   if (item.status === "pending_review") {
     if (isPrincipal) actions.push(<button key="ac" className="btn green" disabled={busy} onClick={() => doStatus("closed", "Reviewed & closed")}><Ico d={I.check} /> Accept & close</button>);
@@ -1046,8 +1046,8 @@ function ItemDetail({ ctx, item }) {
               <div className="composer">
                 <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a comment…" />
                 <div className="row">
-                  <button className="btn" disabled={busy} onClick={doComment}>Comment</button>
-                  {canAsk && <button className="btn amber" disabled={busy} onClick={doAsk}><Ico d={I.flag} /> Ask a question instead</button>}
+                  <button className="btn" disabled={busy} onClick={doComment} title="Adds a note to the conversation. It doesn't change the status or require a reply.">Comment</button>
+                  {canAsk && <button className="btn amber" disabled={busy} onClick={doAsk} title={"Sends this as a question to " + (isPrincipal ? "Nicole" : "Stephane") + " and pauses the item until they answer."}><Ico d={I.flag} /> Ask a question instead</button>}
                 </div>
               </div>
             )}
