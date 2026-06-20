@@ -446,3 +446,40 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
   opacity:0;visibility:hidden;transition:opacity .12s ease;pointer-events:none;z-index:60}
 .has-tip:hover::after{opacity:1;visibility:visible}
 [data-theme="dark"] .has-tip::after{background:#2A323F;border:1px solid #3A4453}
+
+/* === Look & feel pass (phase 1) === */
+.pri-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:8px;vertical-align:middle;background:#98A2B3}
+.pri-dot.pri-high{background:#F43F5E}
+
+.brief{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:6px;font-size:13px;color:var(--slate)}
+.brief .brief-date{color:var(--ink);font-weight:500}
+.brief .dot-sep{color:var(--line-2)}
+.brief b{font-weight:700}
+
+.empty-ic{display:inline-flex;width:18px;height:18px;color:#0E9F6E;margin-right:7px;vertical-align:-3px}
+.empty-ic svg{width:16px;height:16px}
+
+.stepper{display:flex;justify-content:space-between;position:relative;margin:16px 0 8px;padding:0 4px}
+.stepper .step{display:flex;flex-direction:column;align-items:center;gap:7px;flex:1;position:relative;z-index:1}
+.stepper .step::before{content:"";position:absolute;top:11px;left:-50%;width:100%;height:2px;background:var(--line-2);z-index:-1}
+.stepper .step:first-child::before{display:none}
+.stepper .step.done::before,.stepper .step.current::before{background:#0EA5E9}
+.step-dot{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--white);border:2px solid var(--line-2)}
+.step-dot svg{width:14px;height:14px}
+.step.done .step-dot{background:#0E9F6E;border-color:#0E9F6E;color:#fff}
+.step.current .step-dot{background:#0EA5E9;border-color:#0EA5E9;box-shadow:0 0 0 4px rgba(14,165,233,.18)}
+.step.current .step-inner{width:7px;height:7px;border-radius:50%;background:#fff}
+.step-lbl{font-size:11.5px;color:var(--faint)}
+.step.done .step-lbl{color:#0E9F6E;font-weight:600}
+.step.current .step-lbl{color:#0EA5E9;font-weight:700}
+[data-theme="dark"] .step-dot{background:#11161F;border-color:#2C3645}
+
+.app-skel{padding:40px;max-width:1120px;width:100%}
+.sk{background:#E4E7EC;border-radius:7px;animation:skpulse 1.5s ease-in-out infinite}
+@keyframes skpulse{0%,100%{opacity:.7}50%{opacity:.35}}
+.sk-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(208px,1fr));gap:14px;margin:24px 0}
+.sk-card{height:84px;border-radius:16px}
+.sk-rowbig{height:62px;border-radius:14px;margin-bottom:14px}
+[data-theme="dark"] .sk{background:#222C3B}
+
+.nav button.active{box-shadow:inset 3px 0 0 #1E3A6B}

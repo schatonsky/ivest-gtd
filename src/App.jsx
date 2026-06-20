@@ -181,9 +181,9 @@ export default function App() {
 
   // ----- gates -----
   if (!isConfigured) return <ConfigWarning />;
-  if (booting) return <div className="app-loading">Loading…</div>;
+  if (booting) return <AppSkeleton />;
   if (!session) return <Login notify={notify} />;
-  if (!profile) return <div className="app-loading">Setting up your profile…</div>;
+  if (!profile) return <AppSkeleton />;
 
   const me = profile.user_key;          // 'stephane' | 'nicole'
   const isPrincipal = profile.role === "principal";
@@ -302,6 +302,32 @@ export default function App() {
   );
 }
 
+function AppSkeleton() {
+  return (
+    <div className="app-skel">
+      <div className="sk sk-line" style={{ width: "38%", height: 22 }} />
+      <div className="sk sk-line" style={{ width: "55%", height: 13, marginTop: 10 }} />
+      <div className="sk-cards">{[0, 1, 2].map((i) => <div key={i} className="sk sk-card" />)}</div>
+      {[0, 1, 2, 3].map((i) => <div key={i} className="sk sk-rowbig" />)}
+    </div>
+  );
+}
+const STEP_OF = { open: 0, in_progress: 1, awaiting_principal: 1, follow_up: 1, on_hold: 1, pending_review: 2, closed: 3 };
+function Stepper({ status }) {
+  const cur = STEP_OF[status] != null ? STEP_OF[status] : 0;
+  const steps = [["open", "Open"], ["in_progress", "In progress"], ["pending_review", "Review"], ["closed", "Closed"]];
+  return (
+    <div className="stepper">
+      {steps.map(([key, label], i) => (
+        <div key={key} className={"step " + (i < cur ? "done" : i === cur ? "current" : "todo")}>
+          <span className="step-dot">{i < cur ? <Ico d={I.check} /> : <span className="step-inner" />}</span>
+          <span className="step-lbl">{label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ============================================================
    Item row + group
    ============================================================ */
@@ -315,7 +341,9 @@ function ItemRow({ it, ctx }) {
   return (
     <div className="item" onClick={() => ctx.open(it.id)}>
       <div className="grow">
-        <div className="ttl">{it.title}
+        <div className="ttl">
+          {it.priority && <span className={"pri-dot pri-" + it.priority} title={it.priority + " priority"} />}
+          {it.title}
           {unread > 0 && <span className="newc" title={unread + " new comment" + (unread > 1 ? "s" : "")}><Ico d={I.chat} />{unread}</span>}
         </div>
         <div className="meta">
@@ -323,11 +351,9 @@ function ItemRow({ it, ctx }) {
           {proj && <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span>}
           {it.is_recurring && <span className="tag recur"><Ico d={I.loop} />Recurring</span>}
           {contactLabel && <span className="muted">{contactLabel}</span>}
-          {it.due_date && <span className="muted">due {it.due_date}</span>}
-          <span className="muted">{ago(it.updated_at)}</span>
+          <span className="muted">added {ago(it.created_at)}</span>
         </div>
       </div>
-      <Prio p={it.priority} />
       <StateBadge s={it.status} />
       <span className="chev"><Ico d={I.chev} /></span>
     </div>
@@ -342,7 +368,7 @@ function Group({ title, icon, arr, ctx, empty, tone, startOpen }) {
         <div style={{ flex: 1 }} />
         <span className={"twist" + (open ? " open" : "")}><Ico d={I.chev} /></span>
       </div>
-      {open && (arr.length ? arr.map((it) => <ItemRow key={it.id} it={it} ctx={ctx} />) : <div className="empty">{empty}</div>)}
+      {open && (arr.length ? arr.map((it) => <ItemRow key={it.id} it={it} ctx={ctx} />) : <div className="empty"><span className="empty-ic"><Ico d={I.check} /></span>{empty}</div>)}
     </div>
   );
 }
@@ -365,7 +391,18 @@ function Dashboard({ ctx }) {
         <div>
           <div className="eyebrow">{isPrincipal ? "Principal" : "Assistant"} workspace</div>
           <h2>Hello, {profile.name.split(" ")[0]}</h2>
-          <div className="sub">Here's where things stand right now.</div>
+          <div className="brief">
+            <span className="brief-date">{new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</span>
+            {isPrincipal ? (<>
+              <span className="dot-sep">·</span><span><b style={{ color: "#E0A82E" }}>{by("awaiting_principal").length}</b> need your answer</span>
+              <span className="dot-sep">·</span><span><b style={{ color: "#9F5CF0" }}>{by("pending_review").length}</b> to review</span>
+              <span className="dot-sep">·</span><span><b style={{ color: "#3B6CF0" }}>{by("open").length + by("in_progress").length}</b> with Nicole</span>
+            </>) : (<>
+              <span className="dot-sep">·</span><span><b style={{ color: "#3B6CF0" }}>{by("open").length}</b> to start</span>
+              <span className="dot-sep">·</span><span><b style={{ color: "#0EA5E9" }}>{by("in_progress").length}</b> in progress</span>
+              <span className="dot-sep">·</span><span><b style={{ color: "#F43F5E" }}>{by("follow_up").length}</b> follow-ups</span>
+            </>)}
+          </div>
         </div>
         <div className="spacer" />
         <button className="btn primary" onClick={() => ctx.goNew()}>
@@ -989,6 +1026,7 @@ function ItemDetail({ ctx, item }) {
             <>
               <h3>{item.title}{item.is_recurring && <span className="tag recur" style={{ marginLeft: 8, verticalAlign: "middle" }}><Ico d={I.loop} />Recurring</span>}</h3>
               <div className="muted">Created by {profileFor(item.created_by, profiles).name} · {ago(item.created_at)}</div>
+              <Stepper status={item.status} />
               {banner}
               <div className="actions">
                 {canSetStatus && (
