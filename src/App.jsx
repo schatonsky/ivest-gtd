@@ -12,6 +12,11 @@ const DEFAULTS = {
   stephane: { name: "Stephane Chatonsky", initials: "SC", av: "av-stephane" },
   nicole:   { name: "Nicole Sciacca",     initials: "NS", av: "av-nicole" },
 };
+// Status → accent colour, used for the left stripe on item rows.
+const STATE_COLOR = {
+  open: "#3B6CF0", in_progress: "#0EA5E9", awaiting_principal: "#E0A82E",
+  pending_review: "#9F5CF0", follow_up: "#F43F5E", on_hold: "#A98467", closed: "#98A2B3",
+};
 function profileFor(key, profiles) {
   const p = profiles.find((x) => x.user_key === key);
   const d = DEFAULTS[key] || { name: key, initials: "?", av: "av-nicole" };
@@ -61,11 +66,35 @@ function Prio({ p }) {
   return <span className={"prio " + p}>{p}</span>;
 }
 // Multi-select as toggleable chips
+// Sort reference lists (projects/contacts/locations) alphabetically by name for dropdowns.
+const byName = (a, b) => (a.name || "").localeCompare(b.name || "");
+
+// List vs Cards view toggle for the directory tabs, persisted per tab.
+function useView(key) {
+  const [view, setV] = useState(() => { try { return localStorage.getItem(key) || "list"; } catch (e) { return "list"; } });
+  const setView = (v) => { setV(v); try { localStorage.setItem(key, v); } catch (e) {} };
+  return [view, setView];
+}
+function ViewToggle({ view, setView }) {
+  return (
+    <span className="viewtoggle" style={{ marginRight: 8 }}>
+      <button className={"vt" + (view === "list" ? " on" : "")} onClick={() => setView("list")} title="List view" aria-label="List view"><Ico d={I.items} /></button>
+      <button className={"vt" + (view === "cards" ? " on" : "")} onClick={() => setView("cards")} title="Card view" aria-label="Card view"><Ico d={I.grid} /></button>
+    </span>
+  );
+}
+function initials(name) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
 function ChipMulti({ options, selected, onToggle, empty }) {
+  const opts = [...(options || [])].sort(byName);
   return (
     <div className="chipmulti">
-      {options.length === 0 && <span className="muted">{empty || "—"}</span>}
-      {options.map((o) => {
+      {opts.length === 0 && <span className="muted">{empty || "—"}</span>}
+      {opts.map((o) => {
         const on = (selected || []).includes(o.id);
         return (
           <button type="button" key={o.id} className={"chip" + (on ? " on" : "")} onClick={() => onToggle(o.id)}>
@@ -101,7 +130,8 @@ export default function App() {
   const [chatReads, setChatReads] = useState([]);
 
   // ui
-  const [view, setView] = useState("dashboard");
+  const [view, setView] = useState("plate");
+  const [density, setDensity] = useState("comfortable");
   const [currentId, setCurrentId] = useState(null);
   const [toast, setToast] = useState("");
   const [navOpen, setNavOpen] = useState(false);
@@ -123,14 +153,20 @@ export default function App() {
     setWidth(w);
     try { localStorage.setItem("gtd-width", w); } catch {}
   }
+  function applyDensity(d) {
+    setDensity(d);
+    try { localStorage.setItem("gtd-density", d); } catch {}
+  }
 
   // theme + width on mount
   useEffect(() => {
-    let savedTheme = "light", savedWidth = "comfortable";
+    let savedTheme = "light", savedWidth = "comfortable", savedDensity = "comfortable";
     try { savedTheme = localStorage.getItem("gtd-theme") || "light"; } catch {}
     try { savedWidth = localStorage.getItem("gtd-width") || "comfortable"; } catch {}
+    try { savedDensity = localStorage.getItem("gtd-density") || "comfortable"; } catch {}
     applyTheme(savedTheme);
     setWidth(savedWidth);
+    setDensity(savedDensity);
   }, []);
 
   // auth
@@ -201,6 +237,7 @@ export default function App() {
   };
 
   const NAV = [
+    { key: "plate", label: "On my plate", icon: I.plate },
     { key: "dashboard", label: "Dashboard", icon: I.dashboard },
     { key: "items", label: "All Items", icon: I.items },
     { key: "recurring", label: "Recurring", icon: I.loop },
@@ -218,6 +255,7 @@ export default function App() {
   const chatSeenAt = myChatRead ? new Date(myChatRead.last_seen_at).getTime() : 0;
   const chatUnread = chat.filter((m) => m.author !== me && new Date(m.created_at).getTime() > chatSeenAt).length;
   const titles = {
+    plate: "On my plate",
     dashboard: "Dashboard", items: "All Items", new: "New Item", projects: "Projects",
     activity: "Activity", profiles: "Profiles", audit: "Audit log", contacts: "Contacts", locations: "Locations",
     chat: "Chat", email: "Email update", recurring: "Recurring",
@@ -253,6 +291,11 @@ export default function App() {
               <button key={w} className={width === w ? "on" : ""} onClick={() => applyWidth(w)}>{label}</button>
             ))}
           </div>
+          <div className="width-ctl" title="Row density">
+            {[["comfortable", "Comfortable"], ["compact", "Compact"]].map(([d, label]) => (
+              <button key={d} className={density === d ? "on" : ""} onClick={() => applyDensity(d)}>{label}</button>
+            ))}
+          </div>
           <button className="who-card" onClick={() => { setView("profiles"); setNavOpen(false); }}>
             <Avatar k={me} size={34} profiles={profiles} />
             <div className="meta">
@@ -281,7 +324,8 @@ export default function App() {
           </button>
         </div>
 
-        <div className={"content width-" + width} key={view + (currentId || "")}>
+        <div className={"content width-" + width + " density-" + density} key={view + (currentId || "")}>
+          {view === "plate" && <OnMyPlate ctx={ctx} />}
           {view === "dashboard" && <Dashboard ctx={ctx} />}
           {view === "items" && <ItemsList ctx={ctx} />}
           {view === "recurring" && <Recurring ctx={ctx} />}
@@ -353,7 +397,7 @@ function ItemRow({ it, ctx }) {
   const seenAt = myRead ? new Date(myRead.last_seen_at).getTime() : 0;
   const unread = (ctx.comments || []).filter((c) => c.action_item_id === it.id && c.author !== ctx.me && new Date(c.created_at).getTime() > seenAt).length;
   return (
-    <div className="item" onClick={() => ctx.open(it.id)}>
+    <div className="item striped" style={{ borderLeftColor: STATE_COLOR[it.status] || "transparent" }} onClick={() => ctx.open(it.id)}>
       <div className="grow">
         <div className="ttl">
           {it.priority && <span className={"pri-dot pri-" + it.priority} title={it.priority + " priority"} />}
@@ -384,6 +428,63 @@ function Group({ title, icon, arr, ctx, empty, tone, startOpen }) {
       </div>
       {open && (arr.length ? arr.map((it) => <ItemRow key={it.id} it={it} ctx={ctx} />) : <div className="empty"><span className="empty-ic"><Ico d={I.check} /></span>{empty}</div>)}
     </div>
+  );
+}
+
+/* ============================================================
+   On my plate — focused landing: only what's waiting on YOU
+   ============================================================ */
+function OnMyPlate({ ctx }) {
+  const { items, isPrincipal, me, profiles, projects, contacts } = ctx;
+  const otherName = (profileFor(isPrincipal ? "nicole" : "stephane", profiles).name || "").split(" ")[0];
+  const prioRank = (p) => (p === "high" ? 2 : p === "low" ? 0 : 1);
+  const byPrio = (a, b) => prioRank(b.priority) - prioRank(a.priority) || (new Date(a.created_at) - new Date(b.created_at));
+  const projName = (id) => { const p = projects.find((x) => x.id === id); return p ? p.name : null; };
+  const firstContact = (it) => { const id = (it.contact_ids || [])[0]; const c = id && contacts.find((x) => x.id === id); return c ? c.name : null; };
+  const groups = (isPrincipal
+    ? [
+        { key: "awaiting_principal", label: "Needs your answer", color: "#E0A82E", action: "Answer" },
+        { key: "pending_review", label: "Ready to review", color: "#9F5CF0", action: "Review" },
+      ]
+    : [
+        { key: "open", label: "To do", color: "#3B6CF0", action: "Start" },
+        { key: "in_progress", label: "In progress", color: "#0EA5E9", action: "Open" },
+        { key: "follow_up", label: "Follow-up needed", color: "#F43F5E", action: "Resume" },
+      ]
+  ).map((g) => ({ ...g, list: items.filter((i) => i.status === g.key && ownerOf(i) === me).sort(byPrio) })).filter((g) => g.list.length);
+  const total = groups.reduce((s, g) => s + g.list.length, 0);
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  return (
+    <>
+      <div className="page-head"><div><h2>On my plate</h2>
+        <div className="brief"><span className="brief-date">{today}</span><span className="dot-sep">·</span>
+          <span>{total === 0 ? "nothing waiting on you" : <><b>{total}</b> item{total === 1 ? "" : "s"} waiting on you</>}</span>
+        </div></div></div>
+      {total === 0 ? (
+        <div className="empty"><span className="empty-ic"><Ico d={I.check} /></span>You're all caught up — nothing needs you right now.</div>
+      ) : (
+        groups.map((g) => (
+          <div key={g.key} className="plate-sect">
+            <div className="plate-h"><span className="plate-h-lbl" style={{ color: g.color }}>{g.label}</span><span className="plate-h-n">{g.list.length}</span></div>
+            <div className="plate-list">
+              {g.list.map((it) => (
+                <div key={it.id} className="plate-row" style={{ borderLeftColor: g.color }} onClick={() => ctx.open(it.id)}>
+                  <span className={"pri-dot pri-" + (it.priority || "normal")} title={(it.priority || "normal") + " priority"} />
+                  <div className="plate-body">
+                    <div className="plate-ttl">{it.title}</div>
+                    <div className="plate-meta">{[projName(it.project_id), firstContact(it), "added " + ago(it.created_at)].filter(Boolean).join(" · ")}</div>
+                  </div>
+                  <button className="btn primary sm" onClick={(e) => { e.stopPropagation(); ctx.open(it.id); }}>{g.action}</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+      {total > 0 && (
+        <div className="plate-foot"><Ico d={I.check} /><span>Everything else is with {otherName} — nothing else needs you right now.</span></div>
+      )}
+    </>
   );
 }
 
@@ -749,15 +850,15 @@ function ItemsList({ ctx }) {
         </select>
         <select value={f.project} onChange={(e) => setF({ ...f, project: e.target.value })}>
           <option value="all">All projects</option>
-          {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {[...projects].sort(byName).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <select value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })}>
           <option value="all">All contacts</option>
-          {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {[...contacts].sort(byName).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })}>
           <option value="all">All locations</option>
-          {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          {[...locations].sort(byName).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
         <select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>
           <option value="all">Any source</option>
@@ -994,7 +1095,7 @@ function ItemDetail({ ctx, item }) {
             <StateBadge s={item.status} />{item.priority && <span className={"pri-dot pri-" + item.priority} title={item.priority + " priority"} />}
             <div style={{ flex: 1 }} />
             {!editing && <button className="btn ghost sm" onClick={startEdit}><Ico d={I.pencil} /> Edit</button>}
-            {!editing && isPrincipal && <button className="btn danger sm" disabled={busy} onClick={doDelete}>Delete</button>}
+            {!editing && isPrincipal && <button className="btn danger sm" disabled={busy} onClick={doDelete}><Ico d={I.trash} /> Delete</button>}
           </div>
           {editing ? (
             <div style={{ marginTop: 12 }}>
@@ -1007,7 +1108,7 @@ function ItemDetail({ ctx, item }) {
                   <label className="fld">Project</label>
                   <select value={projDraft} onChange={(e) => setProjDraft(e.target.value)}>
                     <option value="">— none —</option>
-                    {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {[...projects].sort(byName).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div className="full">
@@ -1146,7 +1247,7 @@ function ItemDetail({ ctx, item }) {
                 </select></span></div>
               <div className="kv"><span className="k">Project</span><span className="v">
                 <select value={projDraft} onChange={(e) => setProjDraft(e.target.value)}>
-                  <option value="">— none —</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  <option value="">— none —</option>{[...projects].sort(byName).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select></span></div>
               <div className="kv col"><span className="k">Contacts</span>
                 <ChipMulti options={contacts} selected={contactsDraft} onToggle={toggleDraft(setContactsDraft)} empty="No contacts yet" /></div>
@@ -1251,7 +1352,7 @@ function NewItem({ ctx }) {
           <div className="full"><label className="fld">Description</label><textarea value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Details for Nicole…" /></div>
           <div><label className="fld">Project</label>
             <select value={form.project_id} onChange={(e) => set("project_id", e.target.value)}>
-              <option value="">— none —</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <option value="">— none —</option>{[...projects].sort(byName).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select></div>
           <div className="full"><label className="fld">Contacts</label>
             <ChipMulti options={contacts} selected={form.contact_ids} onToggle={(id) => toggle("contact_ids", id)} empty="No contacts yet" />
@@ -1286,16 +1387,20 @@ function NewItem({ ctx }) {
 function Projects({ ctx }) {
   const { projects, items, contacts, isPrincipal } = ctx;
   const [sort, setSort] = useState("custom");
+  const [view, setView] = useView("gtd-proj-view");
   const openCount = (id) => items.filter((i) => i.project_id === id && i.status !== "closed").length;
   const contactsFor = (pid) => {
     const ids = [...new Set(items.filter((i) => i.project_id === pid).flatMap((i) => i.contact_ids || []))];
     return ids.map((id) => contacts.find((c) => c.id === id)).filter(Boolean);
   };
   const reorder = async (arr) => { await Promise.all(arr.map((p, i) => api.updateProjectOrder(p.id, i + 1))); await ctx.reload(); };
-  const move = (i, dir) => {
-    const arr = projects.slice(); const j = i + dir;
-    if (j < 0 || j >= arr.length) return;
-    const t = arr[i]; arr[i] = arr[j]; arr[j] = t; reorder(arr);
+  const [dragId, setDragId] = useState(null);
+  const onDrop = (targetId) => {
+    if (!dragId || dragId === targetId) { setDragId(null); return; }
+    const arr = projects.slice();
+    const from = arr.findIndex((x) => x.id === dragId), to = arr.findIndex((x) => x.id === targetId);
+    if (from < 0 || to < 0) { setDragId(null); return; }
+    const [m] = arr.splice(from, 1); arr.splice(to, 0, m); reorder(arr); setDragId(null);
   };
   const add = async () => {
     const name = window.prompt("New project name:");
@@ -1314,45 +1419,69 @@ function Projects({ ctx }) {
     if (error) { ctx.notify("Couldn't delete: " + error.message); return; }
     await ctx.reload(); ctx.notify("Project deleted");
   };
+  const list = (() => {
+    let l = projects.slice();
+    if (sort === "name") l.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sort === "count") l.sort((a, b) => openCount(b.id) - openCount(a.id));
+    return l;
+  })();
   return (
     <>
       <div className="page-head"><div><h2>Projects</h2><div className="sub">Group action items by project</div></div><div className="spacer" />
+        <ViewToggle view={view} setView={setView} />
         <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ marginRight: 8 }}>
           <option value="custom">Custom order</option>
           <option value="name">Name A–Z</option>
           <option value="count">Most items</option>
         </select>
         <button className="btn primary" onClick={add}><Ico d={I.add} /> New project</button></div>
-      <div className="group">
-        {(() => {
-          let list = projects.slice();
-          if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name));
-          else if (sort === "count") list.sort((a, b) => openCount(b.id) - openCount(a.id));
-          return list.map((p, idx) => {
+      {view === "cards" ? (
+        <div className="dir-cards">
+          {list.map((p) => {
+            const n = openCount(p.id); const cs = contactsFor(p.id);
+            return (
+              <div key={p.id} className="dir-card">
+                <div className="dc-head">
+                  <span className="pc" style={{ background: p.color }} />
+                  <span className="dc-name" onClick={() => ctx.goFiltered({ project: p.id })} title="View items">{p.name}</span>
+                  <button className="iconbtn" title="Rename" aria-label="Rename" onClick={() => rename(p)}><Ico d={I.pencil} /></button>
+                  {isPrincipal && <button className="iconbtn danger" title="Delete" aria-label="Delete" onClick={() => del(p)}><Ico d={I.trash} /></button>}
+                </div>
+                <div className="dc-foot">
+                  <span className="countchip">{n} open</span>
+                  {cs.slice(0, 3).map((c) => <span key={c.id} className="tag">{c.name}</span>)}
+                  {cs.length > 3 && <span className="tag">+{cs.length - 3}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="group">
+          {list.map((p) => {
             const n = openCount(p.id);
             return (
-              <div key={p.id} className="proj-row">
-                {sort === "custom" && (
-                  <span className="reorder">
-                    <button className="btn ghost sm" disabled={idx === 0} onClick={() => move(idx, -1)} title="Move up">↑</button>
-                    <button className="btn ghost sm" disabled={idx === list.length - 1} onClick={() => move(idx, 1)} title="Move down">↓</button>
-                  </span>
-                )}
+              <div key={p.id} className={"proj-row" + (dragId === p.id ? " dragging" : "")}
+                draggable={sort === "custom"}
+                onDragStart={() => sort === "custom" && setDragId(p.id)}
+                onDragOver={(e) => { if (sort === "custom") e.preventDefault(); }}
+                onDrop={() => onDrop(p.id)}>
+                {sort === "custom" && <span className="grip" title="Drag to reorder"><Ico d={I.grip} /></span>}
                 <span className="pc" style={{ background: p.color }} />
                 <span className="row-open" onClick={() => ctx.goFiltered({ project: p.id })} title="View items">
-                  <b>{p.name}</b><span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
+                  <b>{p.name}</b><span className="countchip">{n} open</span>
                 </span>
                 <span className="mini-tags">
                   {contactsFor(p.id).map((c) => <span key={c.id} className="tag">{c.name}</span>)}
                 </span>
                 <div style={{ flex: 1 }} />
-                <button className="btn ghost sm" onClick={() => rename(p)}>Rename</button>
-                {isPrincipal && <button className="btn danger sm" onClick={() => del(p)}>Delete</button>}
+                <button className="iconbtn" title="Rename" aria-label="Rename" onClick={() => rename(p)}><Ico d={I.pencil} /></button>
+                {isPrincipal && <button className="iconbtn danger" title="Delete" aria-label="Delete" onClick={() => del(p)}><Ico d={I.trash} /></button>}
               </div>
             );
-          });
-        })()}
-      </div>
+          })}
+        </div>
+      )}
     </>
   );
 }
@@ -1364,6 +1493,7 @@ function Contacts({ ctx }) {
   const { contacts, items, projects, isPrincipal } = ctx;
   const [sort, setSort] = useState("custom");
   const [showEmpty, setShowEmpty] = useState(false);
+  const [view, setView] = useView("gtd-contact-view");
   const openCount = (id) => items.filter((i) => (i.contact_ids || []).includes(id) && i.status !== "closed").length;
   const totalCount = (id) => items.filter((i) => (i.contact_ids || []).includes(id)).length;
   const hiddenCount = contacts.filter((c) => totalCount(c.id) === 0).length;
@@ -1372,11 +1502,13 @@ function Contacts({ ctx }) {
     return ids.map((id) => projects.find((p) => p.id === id)).filter(Boolean);
   };
   const reorder = async (arr) => { await Promise.all(arr.map((c, i) => api.updateContactOrder(c.id, i + 1))); await ctx.reload(); };
-  const move = (c, dir) => {
+  const [dragId, setDragId] = useState(null);
+  const onDrop = (targetId) => {
+    if (!dragId || dragId === targetId) { setDragId(null); return; }
     const arr = contacts.slice();
-    const i = arr.findIndex((x) => x.id === c.id); const j = i + dir;
-    if (i < 0 || j < 0 || j >= arr.length) return;
-    const t = arr[i]; arr[i] = arr[j]; arr[j] = t; reorder(arr);
+    const from = arr.findIndex((x) => x.id === dragId), to = arr.findIndex((x) => x.id === targetId);
+    if (from < 0 || to < 0) { setDragId(null); return; }
+    const [m] = arr.splice(from, 1); arr.splice(to, 0, m); reorder(arr); setDragId(null);
   };
   const add = async () => {
     const name = window.prompt("Contact name:");
@@ -1401,37 +1533,72 @@ function Contacts({ ctx }) {
     if (error) { ctx.notify("Couldn't delete: " + error.message); return; }
     await ctx.reload(); ctx.notify("Contact deleted");
   };
+  const list = (() => {
+    let l = contacts.slice();
+    if (!showEmpty) l = l.filter((c) => totalCount(c.id) > 0);
+    if (sort === "name") l.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sort === "count") l.sort((a, b) => openCount(b.id) - openCount(a.id));
+    return l;
+  })();
+  const hiddenToggle = hiddenCount > 0 && (
+    <button className="btn ghost sm" style={{ margin: "10px 12px" }} onClick={() => setShowEmpty(!showEmpty)}>
+      {showEmpty ? "Hide" : "Show"} {hiddenCount} contact{hiddenCount === 1 ? "" : "s"} with no actions
+    </button>
+  );
   return (
     <>
       <div className="page-head"><div><h2>Contacts</h2><div className="sub">People &amp; companies your items relate to</div></div><div className="spacer" />
+        <ViewToggle view={view} setView={setView} />
         <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ marginRight: 8 }}>
           <option value="custom">Custom order</option>
           <option value="name">Name A–Z</option>
           <option value="count">Most items</option>
         </select>
         <button className="btn primary" onClick={add}><Ico d={I.add} /> New contact</button></div>
-      <div className="group">
-        {contacts.length === 0 && <div className="empty">No contacts yet.</div>}
-        {(() => {
-          let list = contacts.slice();
-          if (!showEmpty) list = list.filter((c) => totalCount(c.id) > 0);
-          if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name));
-          else if (sort === "count") list.sort((a, b) => openCount(b.id) - openCount(a.id));
-          return list.map((c, idx) => {
+      {view === "cards" ? (
+        <>
+          <div className="dir-cards">
+            {contacts.length === 0 && <div className="empty">No contacts yet.</div>}
+            {list.map((c) => {
+              const n = openCount(c.id); const ps = projsFor(c.id);
+              return (
+                <div key={c.id} className="dir-card">
+                  <div className="dc-head">
+                    <span className="dc-avatar" style={{ background: colorFor(c.id) }}>{initials(c.name)}</span>
+                    <span className="dc-person" onClick={() => ctx.goFiltered({ contact: c.id })} title="View items">
+                      <span className="dc-name">{c.name}</span>
+                      {c.email && <span className="dc-sub">{c.email}</span>}
+                    </span>
+                    <button className="iconbtn" title="Edit" aria-label="Edit" onClick={() => edit(c)}><Ico d={I.pencil} /></button>
+                    {isPrincipal && <button className="iconbtn danger" title="Delete" aria-label="Delete" onClick={() => del(c)}><Ico d={I.trash} /></button>}
+                  </div>
+                  <div className="dc-foot">
+                    <span className="countchip">{n} open</span>
+                    {ps.map((p) => <span key={p.id} className="tag"><span className="pdot" style={{ background: p.color }} />{p.name}</span>)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {hiddenToggle}
+        </>
+      ) : (
+        <div className="group">
+          {contacts.length === 0 && <div className="empty">No contacts yet.</div>}
+          {list.map((c) => {
             const n = openCount(c.id);
             return (
-              <div key={c.id} className="proj-row">
-                {sort === "custom" && (
-                  <span className="reorder">
-                    <button className="btn ghost sm" disabled={idx === 0} onClick={() => move(c, -1)} title="Move up">↑</button>
-                    <button className="btn ghost sm" disabled={idx === list.length - 1} onClick={() => move(c, 1)} title="Move down">↓</button>
-                  </span>
-                )}
+              <div key={c.id} className={"proj-row" + (dragId === c.id ? " dragging" : "")}
+                draggable={sort === "custom"}
+                onDragStart={() => sort === "custom" && setDragId(c.id)}
+                onDragOver={(e) => { if (sort === "custom") e.preventDefault(); }}
+                onDrop={() => onDrop(c.id)}>
+                {sort === "custom" && <span className="grip" title="Drag to reorder"><Ico d={I.grip} /></span>}
                 <span className="pc" style={{ background: colorFor(c.id), borderRadius: "50%" }} />
                 <span className="row-open" onClick={() => ctx.goFiltered({ contact: c.id })} title="View items">
                   <b>{c.name}</b>
                   {c.email && <span className="badge-mini">{c.email}</span>}
-                  <span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
+                  <span className="countchip">{n} open</span>
                 </span>
                 <span className="mini-tags">
                   {projsFor(c.id).map((p) => (
@@ -1439,18 +1606,14 @@ function Contacts({ ctx }) {
                   ))}
                 </span>
                 <div style={{ flex: 1 }} />
-                <button className="btn ghost sm" onClick={() => edit(c)}>Edit</button>
-                {isPrincipal && <button className="btn danger sm" onClick={() => del(c)}>Delete</button>}
+                <button className="iconbtn" title="Edit" aria-label="Edit" onClick={() => edit(c)}><Ico d={I.pencil} /></button>
+                {isPrincipal && <button className="iconbtn danger" title="Delete" aria-label="Delete" onClick={() => del(c)}><Ico d={I.trash} /></button>}
               </div>
             );
-          });
-        })()}
-        {hiddenCount > 0 && (
-          <button className="btn ghost sm" style={{ margin: "10px 12px" }} onClick={() => setShowEmpty(!showEmpty)}>
-            {showEmpty ? "Hide" : "Show"} {hiddenCount} contact{hiddenCount === 1 ? "" : "s"} with no actions
-          </button>
-        )}
-      </div>
+          })}
+          {hiddenToggle}
+        </div>
+      )}
     </>
   );
 }
@@ -1461,12 +1624,16 @@ function Contacts({ ctx }) {
 function Locations({ ctx }) {
   const { locations, items, isPrincipal } = ctx;
   const [sort, setSort] = useState("custom");
+  const [view, setView] = useView("gtd-loc-view");
   const openCount = (id) => items.filter((i) => (i.location_ids || []).includes(id) && i.status !== "closed").length;
   const reorder = async (arr) => { await Promise.all(arr.map((l, i) => api.updateLocationOrder(l.id, i + 1))); await ctx.reload(); };
-  const move = (i, dir) => {
-    const arr = locations.slice(); const j = i + dir;
-    if (j < 0 || j >= arr.length) return;
-    const t = arr[i]; arr[i] = arr[j]; arr[j] = t; reorder(arr);
+  const [dragId, setDragId] = useState(null);
+  const onDrop = (targetId) => {
+    if (!dragId || dragId === targetId) { setDragId(null); return; }
+    const arr = locations.slice();
+    const from = arr.findIndex((x) => x.id === dragId), to = arr.findIndex((x) => x.id === targetId);
+    if (from < 0 || to < 0) { setDragId(null); return; }
+    const [m] = arr.splice(from, 1); arr.splice(to, 0, m); reorder(arr); setDragId(null);
   };
   const add = async () => {
     const name = window.prompt("Location name:");
@@ -1488,44 +1655,65 @@ function Locations({ ctx }) {
     if (error) { ctx.notify("Couldn't delete: " + error.message); return; }
     await ctx.reload(); ctx.notify("Location deleted");
   };
+  const list = (() => {
+    let l = locations.slice();
+    if (sort === "name") l.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sort === "count") l.sort((a, b) => openCount(b.id) - openCount(a.id));
+    return l;
+  })();
   return (
     <>
       <div className="page-head"><div><h2>Locations</h2><div className="sub">Where items take place</div></div><div className="spacer" />
+        <ViewToggle view={view} setView={setView} />
         <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ marginRight: 8 }}>
           <option value="custom">Custom order</option>
           <option value="name">Name A–Z</option>
           <option value="count">Most items</option>
         </select>
         <button className="btn primary" onClick={add}><Ico d={I.add} /> New location</button></div>
-      <div className="group">
-        {locations.length === 0 && <div className="empty">No locations yet.</div>}
-        {(() => {
-          let list = locations.slice();
-          if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name));
-          else if (sort === "count") list.sort((a, b) => openCount(b.id) - openCount(a.id));
-          return list.map((l, idx) => {
+      {view === "cards" ? (
+        <div className="dir-cards">
+          {locations.length === 0 && <div className="empty">No locations yet.</div>}
+          {list.map((l) => {
             const n = openCount(l.id);
             return (
-              <div key={l.id} className="proj-row">
-                {sort === "custom" && (
-                  <span className="reorder">
-                    <button className="btn ghost sm" disabled={idx === 0} onClick={() => move(idx, -1)} title="Move up">↑</button>
-                    <button className="btn ghost sm" disabled={idx === list.length - 1} onClick={() => move(idx, 1)} title="Move down">↓</button>
-                  </span>
-                )}
+              <div key={l.id} className="dir-card">
+                <div className="dc-head">
+                  <span className="pc" style={{ background: colorFor(l.id), borderRadius: "50%" }} />
+                  <span className="dc-name" onClick={() => ctx.goFiltered({ location: l.id })} title="View items">{l.name}</span>
+                  <button className="iconbtn" title="Edit" aria-label="Edit" onClick={() => edit(l)}><Ico d={I.pencil} /></button>
+                  {isPrincipal && <button className="iconbtn danger" title="Delete" aria-label="Delete" onClick={() => del(l)}><Ico d={I.trash} /></button>}
+                </div>
+                <div className="dc-foot"><span className="countchip">{n} open</span></div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="group">
+          {locations.length === 0 && <div className="empty">No locations yet.</div>}
+          {list.map((l) => {
+            const n = openCount(l.id);
+            return (
+              <div key={l.id} className={"proj-row" + (dragId === l.id ? " dragging" : "")}
+                draggable={sort === "custom"}
+                onDragStart={() => sort === "custom" && setDragId(l.id)}
+                onDragOver={(e) => { if (sort === "custom") e.preventDefault(); }}
+                onDrop={() => onDrop(l.id)}>
+                {sort === "custom" && <span className="grip" title="Drag to reorder"><Ico d={I.grip} /></span>}
                 <span className="pc" style={{ background: colorFor(l.id), borderRadius: "50%" }} />
                 <span className="row-open" onClick={() => ctx.goFiltered({ location: l.id })} title="View items">
                   <b>{l.name}</b>
-                  <span className="badge-mini">{n} open item{n === 1 ? "" : "s"}</span>
+                  <span className="countchip">{n} open</span>
                 </span>
                 <div style={{ flex: 1 }} />
-                <button className="btn ghost sm" onClick={() => edit(l)}>Edit</button>
-                {isPrincipal && <button className="btn danger sm" onClick={() => del(l)}>Delete</button>}
+                <button className="iconbtn" title="Edit" aria-label="Edit" onClick={() => edit(l)}><Ico d={I.pencil} /></button>
+                {isPrincipal && <button className="iconbtn danger" title="Delete" aria-label="Delete" onClick={() => del(l)}><Ico d={I.trash} /></button>}
               </div>
             );
-          });
-        })()}
-      </div>
+          })}
+        </div>
+      )}
     </>
   );
 }
@@ -1538,16 +1726,19 @@ function Activity({ ctx }) {
   return (
     <>
       <div className="page-head"><div><h2>Activity</h2><div className="sub">Everything that's happened, newest first</div></div></div>
-      <div className="group">
+      <div className="group timeline">
+        {activity.length === 0 && <div className="empty"><span className="empty-ic"><Ico d={I.activity} /></span>Nothing has happened yet.</div>}
         {activity.map((a) => {
           const it = items.find((i) => i.id === a.action_item_id);
           const who = a.actor === "system" ? "System" : profileFor(a.actor, profiles).name;
           return (
-            <div key={a.id} className="item" onClick={() => it && ctx.open(it.id)}>
-              <div className="grow"><div className="ttl">{a.change}</div>
-                <div className="meta">{it ? it.title : "—"}<span className="muted">{who} · {ago(a.created_at)}</span></div></div>
+            <div key={a.id} className="tl-row" onClick={() => it && ctx.open(it.id)}>
+              <span className="tl-dot" />
+              <div className="tl-body">
+                <div className="ttl">{a.change}</div>
+                <div className="meta">{it ? it.title : "—"}<span className="muted">{who} · {ago(a.created_at)}</span></div>
+              </div>
               {it && <StateBadge s={it.status} />}
-              <span className="chev"><Ico d={I.chev} /></span>
             </div>
           );
         })}
@@ -1652,7 +1843,10 @@ function Profiles({ ctx }) {
               {mine && <input id={"file-" + key} type="file" accept="image/*" className="hidden-file" disabled={busy} onChange={(e) => onFile(key, e.target)} />}
               <div className="grow">
                 <div className="nm">{p.name}</div>
-                <div className="rl">{p.role === "principal" ? "Principal" : "Assistant"}{mine ? " · you" : ""}</div>
+                <div className="rl">
+                  <span className={"role-badge " + (p.role === "principal" ? "rb-principal" : "rb-assistant")}>{p.role === "principal" ? "Principal" : "Assistant"}</span>
+                  {mine && <span className="muted" style={{ marginLeft: 8 }}>you</span>}
+                </div>
               </div>
               {mine ? (
                 <>

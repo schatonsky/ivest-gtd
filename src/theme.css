@@ -520,3 +520,132 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 @media(max-width:480px){
   .gsearch{display:none}
 }
+
+/* === Look & feel pass (phase 2b) === */
+/* Drag handle replaces the up/down reorder arrows in directories */
+.grip{display:inline-flex;align-items:center;justify-content:center;width:22px;height:26px;color:var(--line-2);cursor:grab;flex:none;border-radius:6px}
+.grip svg{width:18px;height:18px}
+.grip:hover{color:var(--slate);background:var(--line)}
+.proj-row[draggable="true"]{cursor:default}
+.proj-row.dragging{opacity:.45;outline:2px dashed var(--accent);outline-offset:-2px;border-radius:8px}
+
+/* Count chip pill (replaces plain "N open items" text) */
+.countchip{display:inline-block;font-size:11px;font-weight:600;line-height:1;padding:4px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent-d);margin-left:9px;vertical-align:1px}
+[data-theme="dark"] .countchip{background:#16263F;color:#9DB7F5}
+
+/* Icon-only action buttons (Edit / Delete) — consistent across directories */
+.iconbtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;background:none;color:var(--slate);border-radius:8px;cursor:pointer;flex:none;padding:0}
+.iconbtn svg{width:16px;height:16px}
+.iconbtn:hover{background:var(--line);color:var(--ink)}
+.iconbtn.danger:hover{background:#FFE4E6;color:#BE123C}
+[data-theme="dark"] .iconbtn:hover{background:#222B3A}
+[data-theme="dark"] .iconbtn.danger:hover{background:rgba(244,63,94,.16);color:#F79DAC}
+
+/* Activity tab as a timeline (dot + connecting line) */
+.timeline{padding:6px 0}
+.timeline .tl-row{position:relative;display:flex;align-items:center;gap:12px;padding:11px 20px 11px 40px;cursor:pointer;border-bottom:none}
+.timeline .tl-row::before{content:"";position:absolute;left:24px;top:0;bottom:0;width:2px;background:var(--line-2)}
+.timeline .tl-row:first-child::before{top:50%}
+.timeline .tl-row:last-child::before{bottom:50%}
+.timeline .tl-dot{position:absolute;left:19px;top:50%;transform:translateY(-50%);width:11px;height:11px;border-radius:50%;background:var(--accent);border:2px solid var(--white);z-index:1}
+.timeline .tl-row:hover{background:var(--accent-soft)}
+.timeline .tl-body{flex:1;min-width:0}
+.timeline .tl-body .ttl{font-size:13.5px;font-weight:600;color:var(--ink)}
+.timeline .tl-body .meta{font-size:12px;color:var(--slate);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.timeline .tl-body .meta .muted{color:var(--faint)}
+[data-theme="dark"] .timeline .tl-dot{border-color:var(--white)}
+[data-theme="dark"] .timeline .tl-row:hover{background:#1B212C}
+
+/* Profiles — role badge */
+.profile-card .rl{display:flex;align-items:center}
+.role-badge{display:inline-block;font-size:11px;font-weight:600;line-height:1;padding:4px 10px;border-radius:999px}
+.role-badge.rb-principal{background:var(--navy);color:#fff}
+.role-badge.rb-assistant{background:var(--accent-soft);color:var(--accent-d)}
+[data-theme="dark"] .role-badge.rb-principal{background:#26344C;color:#CBD7EC}
+[data-theme="dark"] .role-badge.rb-assistant{background:#16263F;color:#9DB7F5}
+
+@media(max-width:760px){
+  .timeline .tl-row{padding:10px 14px 10px 36px}
+  .timeline .tl-row::before{left:20px}
+  .timeline .tl-dot{left:15px}
+  .iconbtn{width:34px;height:34px}
+}
+
+/* Directory List / Cards view toggle */
+.viewtoggle{display:inline-flex;background:#F2F4F7;border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;vertical-align:middle}
+.viewtoggle .vt{display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;border:none;background:none;color:var(--faint);border-radius:6px;cursor:pointer;padding:0}
+.viewtoggle .vt svg{width:16px;height:16px}
+.viewtoggle .vt.on{background:var(--white);color:var(--accent-d);box-shadow:var(--sh-sm)}
+[data-theme="dark"] .viewtoggle{background:#10151E;border-color:var(--line)}
+[data-theme="dark"] .viewtoggle .vt.on{background:#1B212C;color:#9DB2F0}
+
+/* Directory card grid */
+.dir-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.dir-cards .empty{grid-column:1/-1}
+.dir-card{background:var(--white);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:11px}
+.dir-card .dc-head{display:flex;align-items:center;gap:10px}
+.dir-card .pc{width:12px;height:12px;border-radius:4px;flex:none}
+.dir-card .dc-name{font-size:14px;font-weight:600;color:var(--ink);flex:1;min-width:0;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dir-card .dc-name:hover{color:var(--accent-d)}
+.dir-card .dc-person{flex:1;min-width:0;cursor:pointer;display:flex;flex-direction:column;line-height:1.3;gap:1px}
+.dir-card .dc-person .dc-name{flex:none}
+.dir-card .dc-sub{font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dir-card .dc-avatar{width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
+.dir-card .dc-foot{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.dir-card .dc-foot .countchip{margin-left:0}
+@media(max-width:760px){.dir-cards{grid-template-columns:1fr 1fr;gap:10px}}
+@media(max-width:480px){.dir-cards{grid-template-columns:1fr}}
+
+/* On my plate (focused landing) */
+.plate-sect{margin-bottom:20px}
+.plate-h{display:flex;align-items:center;gap:9px;margin:0 0 9px}
+.plate-h-lbl{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.plate-h-n{font-size:11px;font-weight:700;background:var(--accent-soft);color:var(--accent-d);padding:2px 8px;border-radius:999px}
+[data-theme="dark"] .plate-h-n{background:#16263F;color:#9DB7F5}
+.plate-list{display:flex;flex-direction:column;gap:8px}
+.plate-row{display:flex;align-items:center;gap:11px;background:var(--white);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:12px 15px;cursor:pointer}
+.plate-row:hover{background:var(--accent-soft)}
+[data-theme="dark"] .plate-row:hover{background:#1B212C}
+.plate-row .pri-dot{margin-right:0;flex:none}
+.plate-body{flex:1;min-width:0}
+.plate-ttl{font-size:14px;font-weight:600;color:var(--ink)}
+.plate-meta{font-size:12px;color:var(--faint);margin-top:2px}
+.plate-row .btn.sm{flex:none}
+.plate-foot{display:flex;align-items:center;gap:9px;margin-top:18px;color:var(--slate);font-size:13px}
+.plate-foot svg{width:17px;height:17px;color:var(--green);flex:none}
+@media(max-width:760px){.plate-row{padding:11px 13px}}
+
+/* Status colour stripe on item rows */
+.item.striped{border-left:3px solid transparent}
+
+/* Row density toggle (Comfortable / Compact) */
+.content.density-compact .item{padding-top:9px;padding-bottom:9px}
+.content.density-compact .item .meta{margin-top:2px}
+.content.density-compact .proj-row{padding-top:9px;padding-bottom:9px}
+.content.density-compact .plate-row{padding-top:9px;padding-bottom:9px}
+.content.density-compact .plate-sect{margin-bottom:14px}
+.content.density-compact .dir-card{padding:11px;gap:9px}
+.content.density-compact .timeline .tl-row{padding-top:8px;padding-bottom:8px}
+.content.density-compact .group{margin-bottom:12px}
+
+/* Navy sidebar chrome (light mode only — dark mode keeps its own dark sidebar) */
+[data-theme="light"] .sidebar{background:#101F3D;border-right-color:#1E2A44}
+[data-theme="light"] .brand{border-bottom-color:#1E2A44}
+[data-theme="light"] .brand .name{color:#fff}
+[data-theme="light"] .brand .name small{color:#9DB0D0}
+[data-theme="light"] .nav .sect{color:#6F7E9C}
+[data-theme="light"] .nav button{color:#AEBBD4}
+[data-theme="light"] .nav button svg{color:#8595B2}
+[data-theme="light"] .nav button:hover{background:#1B2A47;color:#fff}
+[data-theme="light"] .nav button:hover svg{color:#CDD6E6}
+[data-theme="light"] .nav button.active{background:#22335A;color:#fff;box-shadow:inset 3px 0 0 #5180F7}
+[data-theme="light"] .nav button.active svg{color:#fff}
+[data-theme="light"] .nav .badge.zero{background:#26344C;color:#9DB0D0}
+[data-theme="light"] .sb-foot{border-top-color:#1E2A44}
+[data-theme="light"] .who-card{background:#1A2942;border-color:#26344C}
+[data-theme="light"] .who-card:hover{background:#22344F}
+[data-theme="light"] .who-card .nm{color:#fff}
+[data-theme="light"] .who-card .rl{color:#9DB0D0}
+[data-theme="light"] .sb-foot .width-ctl{background:#1A2942;border-color:#26344C}
+[data-theme="light"] .sb-foot .width-ctl button{color:#9DB0D0}
+[data-theme="light"] .sb-foot .width-ctl button.on{background:#0F1A30;color:#fff}
