@@ -302,6 +302,14 @@ export default function App() {
   );
 }
 
+function dayLabel(d) {
+  const a = new Date(); a.setHours(0, 0, 0, 0);
+  const b = new Date(d); b.setHours(0, 0, 0, 0);
+  const diff = Math.round((a - b) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
 function AppSkeleton() {
   return (
     <div className="app-skel">
@@ -313,17 +321,23 @@ function AppSkeleton() {
   );
 }
 const STEP_OF = { open: 0, in_progress: 1, awaiting_principal: 1, follow_up: 1, on_hold: 1, pending_review: 2, closed: 3 };
-function Stepper({ status }) {
+function Stepper({ status, onPick, isPrincipal, busy }) {
   const cur = STEP_OF[status] != null ? STEP_OF[status] : 0;
   const steps = [["open", "Open"], ["in_progress", "In progress"], ["pending_review", "Review"], ["closed", "Closed"]];
+  const lockedClosed = !isPrincipal; // only the Principal opens/closes
   return (
     <div className="stepper">
-      {steps.map(([key, label], i) => (
-        <div key={key} className={"step " + (i < cur ? "done" : i === cur ? "current" : "todo")}>
-          <span className="step-dot">{i < cur ? <Ico d={I.check} /> : <span className="step-inner" />}</span>
-          <span className="step-lbl">{label}</span>
-        </div>
-      ))}
+      {steps.map(([key, label], i) => {
+        const clickable = onPick && !busy && key !== status && !(key === "closed" && lockedClosed) && !(status === "closed" && lockedClosed);
+        return (
+          <button type="button" key={key} disabled={!clickable}
+            className={"step " + (i < cur ? "done" : i === cur ? "current" : "todo") + (clickable ? " clickable" : "")}
+            onClick={() => clickable && onPick(key)} title={clickable ? "Move to " + label : ""}>
+            <span className="step-dot">{i < cur ? <Ico d={I.check} /> : <span className="step-inner" />}</span>
+            <span className="step-lbl">{label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -553,20 +567,28 @@ function Chat({ ctx }) {
       <p className="muted" style={{ marginTop: 0 }}>A shared space for questions and notes that aren't tied to a specific action.</p>
       <div className="chatthread">
         {chat.length === 0 && <div className="muted">No messages yet — start the conversation.</div>}
-        {chat.map((m) => {
-          const mine = m.author === me;
-          return (
-            <div key={m.id} className={"cmsg" + (mine ? " mine" : "")}>
-              {!mine && <Avatar k={m.author} size={30} profiles={profiles} />}
-              <div className="cbubble">
-                {!mine && <div className="cwho">{profileFor(m.author, profiles).name.split(" ")[0]}</div>}
-                <div className="ctext">{m.body}</div>
-                <div className="cwhen">{ago(m.created_at)}</div>
+        {(() => {
+          let lastDay = null;
+          const out = [];
+          chat.forEach((m) => {
+            const d = new Date(m.created_at);
+            const key = d.toDateString();
+            if (key !== lastDay) { lastDay = key; out.push(<div key={"d-" + m.id} className="chat-day"><span>{dayLabel(d)}</span></div>); }
+            const mine = m.author === me;
+            out.push(
+              <div key={m.id} className={"cmsg" + (mine ? " mine" : "")}>
+                {!mine && <Avatar k={m.author} size={30} profiles={profiles} />}
+                <div className="cbubble">
+                  {!mine && <div className="cwho">{profileFor(m.author, profiles).name.split(" ")[0]}</div>}
+                  <div className="ctext">{m.body}</div>
+                  <div className="cwhen">{ago(m.created_at)}</div>
+                </div>
+                {mine && <Avatar k={m.author} size={30} profiles={profiles} />}
               </div>
-              {mine && <Avatar k={m.author} size={30} profiles={profiles} />}
-            </div>
-          );
-        })}
+            );
+          });
+          return out;
+        })()}
         <div ref={endRef} />
       </div>
       <div className="composer">
@@ -956,8 +978,6 @@ function ItemDetail({ ctx, item }) {
     banner = <div className="banner review"><Ico d={I.check} /> Marked complete — ready for review.</div>;
   else if (item.status === "follow_up")
     banner = <div className="banner warn"><Ico d={I.loop} /> Follow-up requested — resume work to continue.</div>;
-  else if (owner && owner !== me && item.status !== "closed")
-    banner = <div className="banner info"><Ico d={I.dots} /> This item is currently with {profileFor(owner, profiles).name}.</div>;
 
   const showAnswer = item.status === "awaiting_principal";
   const canComment = item.status !== "closed" && !showAnswer;
@@ -971,7 +991,7 @@ function ItemDetail({ ctx, item }) {
       <div className="detail-wrap">
         <div className="panel">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <StateBadge s={item.status} /><Prio p={item.priority} />
+            <StateBadge s={item.status} />{item.priority && <span className={"pri-dot pri-" + item.priority} title={item.priority + " priority"} />}
             <div style={{ flex: 1 }} />
             {!editing && <button className="btn ghost sm" onClick={startEdit}><Ico d={I.pencil} /> Edit</button>}
             {!editing && isPrincipal && <button className="btn danger sm" disabled={busy} onClick={doDelete}>Delete</button>}
@@ -1026,16 +1046,9 @@ function ItemDetail({ ctx, item }) {
             <>
               <h3>{item.title}{item.is_recurring && <span className="tag recur" style={{ marginLeft: 8, verticalAlign: "middle" }}><Ico d={I.loop} />Recurring</span>}</h3>
               <div className="muted">Created by {profileFor(item.created_by, profiles).name} · {ago(item.created_at)}</div>
-              <Stepper status={item.status} />
+              <Stepper status={item.status} onPick={canSetStatus ? setStatusDirect : null} isPrincipal={isPrincipal} busy={busy} />
               {banner}
               <div className="actions">
-                {canSetStatus && (
-                  <label className="status-set">Status:
-                    <select value={item.status} disabled={busy} onChange={(e) => setStatusDirect(e.target.value)}>
-                      {statusOptions.map((s) => <option key={s} value={s}>{STATES[s].label}</option>)}
-                    </select>
-                  </label>
-                )}
                 {actions}
               </div>
               {showDesc && <div className="desc">{item.description}</div>}
@@ -1125,7 +1138,6 @@ function ItemDetail({ ctx, item }) {
               ? <button className="linkbtn" onClick={startSideEdit}>Edit</button>
               : <button className="linkbtn" onClick={() => setSideEdit(false)}>Cancel</button>}
           </div>
-          <div className="kv"><span className="k">Owner now</span><span className="v">{owner ? profileFor(owner, profiles).name : "—"}</span></div>
           {sideEdit ? (
             <>
               <div className="kv"><span className="k">Assigned to</span><span className="v">
@@ -1153,12 +1165,11 @@ function ItemDetail({ ctx, item }) {
             </>
           ) : (
             <>
-              <div className="kv"><span className="k">Assigned to</span><span className="v">{profileFor(item.assigned_to, profiles).name}</span></div>
-              <div className="kv"><span className="k">Project</span><span className="v">{proj ? <span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span> : "—"}</span></div>
-              <div className="kv"><span className="k">Contacts</span><span className="v">{itemContacts.length ? itemContacts.map((c) => c.name).join(", ") : "—"}</span></div>
-              <div className="kv"><span className="k">Locations</span><span className="v">{itemLocations.length ? itemLocations.map((l) => l.name).join(", ") : "—"}</span></div>
-              <div className="kv"><span className="k">Priority</span><span className="v">{item.priority || "—"}</span></div>
-              <div className="kv"><span className="k">Due</span><span className="v">{item.due_date || "—"}</span></div>
+              <div className="kv"><span className="k">With</span><span className="v">{profileFor(owner || item.assigned_to, profiles).name}</span></div>
+              {proj && <div className="kv"><span className="k">Project</span><span className="v"><span className="tag"><span className="pdot" style={{ background: proj.color }} />{proj.name}</span></span></div>}
+              {itemContacts.length > 0 && <div className="kv"><span className="k">Contacts</span><span className="v">{itemContacts.map((c) => c.name).join(", ")}</span></div>}
+              {itemLocations.length > 0 && <div className="kv"><span className="k">Locations</span><span className="v">{itemLocations.map((l) => l.name).join(", ")}</span></div>}
+              {item.due_date && <div className="kv"><span className="k">Due</span><span className="v">{item.due_date}</span></div>}
             </>
           )}
           <div className="kv"><span className="k">Source</span><span className="v">{item.source === "email" ? (safeUrl(item.source_email_url) ? <a href={safeUrl(item.source_email_url)} target="_blank" rel="noreferrer">Open in Mail ↗</a> : "Email") : "Created manually"}</span></div>

@@ -483,3 +483,40 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 [data-theme="dark"] .sk{background:#222C3B}
 
 .nav button.active{box-shadow:inset 3px 0 0 #1E3A6B}
+
+/* === Item detail simplification === */
+.stepper button.step{background:none;border:none;padding:0 2px;font:inherit;cursor:default}
+.stepper button.step.clickable{cursor:pointer}
+.stepper button.step.clickable:hover .step-dot{border-color:#0EA5E9}
+.stepper button.step.clickable:hover .step-lbl{color:var(--ink)}
+.msg{gap:9px;margin-bottom:11px}
+.msg .body{padding:8px 12px}
+.msg .who{font-size:12px}
+.msg .body .mbody{font-size:13px}
+.act-feed .act-row{position:relative;padding:0 0 13px 18px;display:block}
+.act-feed .act-row::before{content:"";position:absolute;left:3.5px;top:6px;bottom:-3px;width:1.5px;background:var(--line-2)}
+.act-feed .act-row:last-child::before{display:none}
+.act-feed .act-row .ad{position:absolute;left:0;top:4px;width:8px;height:8px;border-radius:50%;background:var(--accent);margin:0}
+.act-feed .act-row > div{font-size:12.5px;color:var(--body)}
+
+/* Chat day separators + rounder bubbles */
+.chat-day{display:flex;align-items:center;justify-content:center;margin:8px 0 2px}
+.chat-day span{font-size:11px;font-weight:600;color:var(--faint);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 12px}
+[data-theme="dark"] .chat-day span{background:#11161F;border-color:var(--line)}
+.cbubble{border-radius:14px}
+
+/* Mobile friendliness for the new look-and-feel elements */
+@media(max-width:760px){
+  .brief{font-size:12px;gap:5px;line-height:1.5}
+  .stepper{padding:0}
+  .stepper .step-lbl{font-size:10px}
+  .step-dot{width:22px;height:22px}
+  .stepper .step::before{top:10px}
+  .app-skel{padding:20px}
+  .gsearch{width:34vw;min-width:0}
+  .detail-wrap{gap:16px}
+  .act-feed{margin-top:14px}
+}
+@media(max-width:480px){
+  .gsearch{display:none}
+}
