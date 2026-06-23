@@ -628,6 +628,12 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 .content.density-compact .timeline .tl-row{padding-top:8px;padding-bottom:8px}
 .content.density-compact .group{margin-bottom:12px}
 
+/* One-line density — collapse each action item to a single row */
+.content.density-oneline .item{padding-top:9px;padding-bottom:9px}
+.content.density-oneline .item .grow{min-width:0;display:flex;align-items:center;gap:10px}
+.content.density-oneline .item .ttl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.content.density-oneline .item .meta{display:none}
+
 /* Navy sidebar chrome (light mode only — dark mode keeps its own dark sidebar) */
 [data-theme="light"] .sidebar{background:#101F3D;border-right-color:#1E2A44}
 [data-theme="light"] .brand{border-bottom-color:#1E2A44}

@@ -165,6 +165,7 @@ export default function App() {
     try { savedTheme = localStorage.getItem("gtd-theme") || "light"; } catch {}
     try { savedWidth = localStorage.getItem("gtd-width") || "comfortable"; } catch {}
     try { savedDensity = localStorage.getItem("gtd-density") || "comfortable"; } catch {}
+    if (savedDensity !== "oneline") savedDensity = "comfortable"; // Compact option removed
     applyTheme(savedTheme);
     setWidth(savedWidth);
     setDensity(savedDensity);
@@ -287,13 +288,8 @@ export default function App() {
           ))}
         </nav>
         <div className="sb-foot">
-          <div className="width-ctl" title="Content width">
-            {[["comfortable", "Comfortable"], ["wide", "Wide"], ["full", "Full"]].map(([w, label]) => (
-              <button key={w} className={width === w ? "on" : ""} onClick={() => applyWidth(w)}>{label}</button>
-            ))}
-          </div>
           <div className="width-ctl" title="Row density">
-            {[["comfortable", "Comfortable"], ["compact", "Compact"]].map(([d, label]) => (
+            {[["comfortable", "Comfortable"], ["oneline", "One line"]].map(([d, label]) => (
               <button key={d} className={density === d ? "on" : ""} onClick={() => applyDensity(d)}>{label}</button>
             ))}
           </div>
@@ -326,7 +322,7 @@ export default function App() {
           </button>
         </div>
 
-        <div className={"content width-" + width + " density-" + density} key={view + (currentId || "")}>
+        <div className={"content width-comfortable density-" + density} key={view + (currentId || "")}>
           {view === "plate" && <OnMyPlate ctx={ctx} />}
           {view === "dashboard" && <Dashboard ctx={ctx} />}
           {view === "items" && <ItemsList ctx={ctx} />}
@@ -417,6 +413,9 @@ function ItemRow({ it, ctx }) {
   const myRead = (ctx.reads || []).find((r) => r.user_key === ctx.me && r.action_item_id === it.id);
   const seenAt = myRead ? new Date(myRead.last_seen_at).getTime() : 0;
   const unread = (ctx.comments || []).filter((c) => c.action_item_id === it.id && c.author !== ctx.me && new Date(c.created_at).getTime() > seenAt).length;
+  // Most recent activity_log entry for this item (list is newest-first) → "last action by …".
+  const lastAct = (ctx.activity || []).find((a) => a.action_item_id === it.id);
+  const lastActor = lastAct ? (lastAct.actor === "system" ? "System" : ((profileFor(lastAct.actor, ctx.profiles).name || "").split(" ")[0] || "someone")) : "";
 
   // Swipe-to-reveal (touch only): slide a row left to show Open + a safe one-step action.
   const [dx, setDx] = useState(0);
@@ -467,6 +466,7 @@ function ItemRow({ it, ctx }) {
             {it.is_recurring && <span className="tag recur"><Ico d={I.loop} />Recurring</span>}
             {contactLabel && <span className="muted">{contactLabel}</span>}
             <span className="muted">added {ago(it.created_at)}</span>
+            {lastAct && <span className="muted">· last action by {lastActor} {ago(lastAct.created_at)}</span>}
           </div>
         </div>
         <StateBadge s={it.status} />
@@ -588,11 +588,6 @@ function Dashboard({ ctx }) {
 
       {isPrincipal ? (
         <>
-          <div className="cards">
-            <Stat n={by("awaiting_principal").length} l="Need my answer" to="awaiting_principal" tone="#E0A82E" />
-            <Stat n={by("pending_review").length} l="To review" to="pending_review" tone="#9F5CF0" />
-            <Stat n={by("open").length + by("in_progress").length} l="With Nicole" to="in_progress" tone="#3B6CF0" />
-          </div>
           <Group title="Needs my answer" icon={I.flag} arr={by("awaiting_principal")} ctx={ctx} empty="Nothing waiting on you right now." tone="#E0A82E" />
           <Group title="To review" icon={I.check} arr={by("pending_review")} ctx={ctx} empty="Nothing to review right now." tone="#9F5CF0" />
           <Group title="Follow-up required" icon={I.loop} arr={by("follow_up")} ctx={ctx} empty="No follow-ups outstanding." tone="#F43F5E" />
@@ -601,12 +596,6 @@ function Dashboard({ ctx }) {
         </>
       ) : (
         <>
-          <div className="cards">
-            <Stat n={by("open").length} l="To start" to="open" tone="#3B6CF0" />
-            <Stat n={by("in_progress").length} l="In progress" to="in_progress" tone="#0EA5E9" />
-            <Stat n={by("follow_up").length} l="Follow-ups" to="follow_up" tone="#F43F5E" />
-            <Stat n={by("awaiting_principal").length} l="Waiting on Stephane" to="awaiting_principal" tone="#E0A82E" />
-          </div>
           <Group title="To do" icon={I.circle} arr={by("open")} ctx={ctx} empty="Nothing new assigned." tone="#3B6CF0" />
           <Group title="In progress" icon={I.dots} arr={by("in_progress")} ctx={ctx} empty="Nothing in progress." tone="#0EA5E9" />
           <Group title="Follow-up from Stephane" icon={I.loop} arr={by("follow_up")} ctx={ctx} empty="No follow-ups." tone="#F43F5E" />
@@ -1562,6 +1551,8 @@ function Contacts({ ctx }) {
     const ids = [...new Set(items.filter((i) => (i.contact_ids || []).includes(cid)).map((i) => i.project_id).filter(Boolean))];
     return ids.map((id) => projects.find((p) => p.id === id)).filter(Boolean);
   };
+  // Colour the contact by its related project (first one), falling back to a per-contact colour.
+  const colorOf = (c) => { const ps = projsFor(c.id); return ps.length ? ps[0].color : colorFor(c.id); };
   const reorder = async (arr) => { await Promise.all(arr.map((c, i) => api.updateContactOrder(c.id, i + 1))); await ctx.reload(); };
   const [dragId, setDragId] = useState(null);
   const onDrop = (targetId) => {
@@ -1625,7 +1616,7 @@ function Contacts({ ctx }) {
               return (
                 <div key={c.id} className="dir-card">
                   <div className="dc-head">
-                    <span className="dc-avatar" style={{ background: colorFor(c.id) }}>{initials(c.name)}</span>
+                    <span className="dc-avatar" style={{ background: colorOf(c) }}>{initials(c.name)}</span>
                     <span className="dc-person" onClick={() => ctx.goFiltered({ contact: c.id })} title="View items">
                       <span className="dc-name">{c.name}</span>
                       {c.email && <span className="dc-sub">{c.email}</span>}
@@ -1655,7 +1646,7 @@ function Contacts({ ctx }) {
                 onDragOver={(e) => { if (sort === "custom") e.preventDefault(); }}
                 onDrop={() => onDrop(c.id)}>
                 {sort === "custom" && <span className="grip" title="Drag to reorder"><Ico d={I.grip} /></span>}
-                <span className="pc" style={{ background: colorFor(c.id), borderRadius: "50%" }} />
+                <span className="pc" style={{ background: colorOf(c), borderRadius: "50%" }} />
                 <span className="row-open" onClick={() => ctx.goFiltered({ contact: c.id })} title="View items">
                   <b>{c.name}</b>
                   {c.email && <span className="badge-mini">{c.email}</span>}

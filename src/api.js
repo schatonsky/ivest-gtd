@@ -108,7 +108,7 @@ export async function listComments() {
   return data || [];
 }
 export async function listActivity() {
-  const { data } = await supabase.from("activity_log").select("*").order("created_at", { ascending: false }).limit(60);
+  const { data } = await supabase.from("activity_log").select("*").order("created_at", { ascending: false }).limit(500);
   return data || [];
 }
 
