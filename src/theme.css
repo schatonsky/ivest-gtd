@@ -455,6 +455,9 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 .brief .brief-date{color:var(--ink);font-weight:500}
 .brief .dot-sep{color:var(--line-2)}
 .brief b{font-weight:700}
+.brief-toggle{background:none;border:none;color:var(--accent-d);font-size:12px;font-weight:600;cursor:pointer;padding:0;margin-left:8px}
+.brief-toggle:hover{text-decoration:underline}
+.brief-toggle.show{margin-left:0;margin-top:6px;display:inline-block}
 
 .empty-ic{display:inline-flex;width:18px;height:18px;color:#0E9F6E;margin-right:7px;vertical-align:-3px}
 .empty-ic svg{width:16px;height:16px}
