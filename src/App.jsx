@@ -564,22 +564,24 @@ function Dashboard({ ctx }) {
     <>
       <div className="page-head">
         <div>
-          <div className="eyebrow">{isPrincipal ? "Principal" : "Assistant"} workspace</div>
-          <h2>Hello, {profile.name.split(" ")[0]}</h2>
           {briefOpen ? (
-            <div className="brief">
-              <span className="brief-date">{new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</span>
-              {isPrincipal ? (<>
-                <span className="dot-sep">·</span><span><b style={{ color: "#E0A82E" }}>{by("awaiting_principal").length}</b> need your answer</span>
-                <span className="dot-sep">·</span><span><b style={{ color: "#9F5CF0" }}>{by("pending_review").length}</b> to review</span>
-                <span className="dot-sep">·</span><span><b style={{ color: "#3B6CF0" }}>{by("open").length + by("in_progress").length}</b> with Nicole</span>
-              </>) : (<>
-                <span className="dot-sep">·</span><span><b style={{ color: "#3B6CF0" }}>{by("open").length}</b> to start</span>
-                <span className="dot-sep">·</span><span><b style={{ color: "#0EA5E9" }}>{by("in_progress").length}</b> in progress</span>
-                <span className="dot-sep">·</span><span><b style={{ color: "#F43F5E" }}>{by("follow_up").length}</b> follow-ups</span>
-              </>)}
-              <button className="brief-toggle" title="Hide summary" onClick={() => setBrief(false)}>Hide</button>
-            </div>
+            <>
+              <div className="eyebrow">{isPrincipal ? "Principal" : "Assistant"} workspace</div>
+              <h2>Hello, {profile.name.split(" ")[0]}</h2>
+              <div className="brief">
+                <span className="brief-date">{new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</span>
+                {isPrincipal ? (<>
+                  <span className="dot-sep">·</span><span><b style={{ color: "#E0A82E" }}>{by("awaiting_principal").length}</b> need your answer</span>
+                  <span className="dot-sep">·</span><span><b style={{ color: "#9F5CF0" }}>{by("pending_review").length}</b> to review</span>
+                  <span className="dot-sep">·</span><span><b style={{ color: "#3B6CF0" }}>{by("open").length + by("in_progress").length}</b> with Nicole</span>
+                </>) : (<>
+                  <span className="dot-sep">·</span><span><b style={{ color: "#3B6CF0" }}>{by("open").length}</b> to start</span>
+                  <span className="dot-sep">·</span><span><b style={{ color: "#0EA5E9" }}>{by("in_progress").length}</b> in progress</span>
+                  <span className="dot-sep">·</span><span><b style={{ color: "#F43F5E" }}>{by("follow_up").length}</b> follow-ups</span>
+                </>)}
+                <button className="brief-toggle" title="Hide" onClick={() => setBrief(false)}>Hide</button>
+              </div>
+            </>
           ) : (
             <button className="brief-toggle show" onClick={() => setBrief(true)}>Show summary</button>
           )}
