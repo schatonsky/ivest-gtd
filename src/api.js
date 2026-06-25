@@ -268,6 +268,18 @@ export async function deleteNoteFile(f) {
   return supabase.from("private_note_files").delete().eq("id", f.id);
 }
 
+// ---------- private links (Principal only; RLS-protected) ----------
+export async function listPrivateLinks(itemId) {
+  const { data } = await supabase.from("private_links").select("*").eq("action_item_id", itemId).order("created_at");
+  return data || [];
+}
+export async function addPrivateLink(itemId, url, label) {
+  return supabase.from("private_links").insert({ action_item_id: itemId, url, label: label || null });
+}
+export async function deletePrivateLink(id) {
+  return supabase.from("private_links").delete().eq("id", id);
+}
+
 // ---------- access / audit log ----------
 export async function startSession(userKey) {
   const id = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : null;

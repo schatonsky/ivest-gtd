@@ -972,6 +972,9 @@ function ItemDetail({ ctx, item }) {
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteFiles, setNoteFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [links, setLinks] = useState([]);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkLabel, setLinkLabel] = useState("");
   const [editId, setEditId] = useState(null);
   const [editDraft, setEditDraft] = useState("");
   const answerRef = useRef(null);
@@ -980,9 +983,25 @@ function ItemDetail({ ctx, item }) {
     if (isPrincipal) {
       api.getPrivateNote(item.id).then((v) => { if (on) setNote(v || ""); });
       api.listNoteFiles(item.id).then((fs) => { if (on) setNoteFiles(fs); });
+      api.listPrivateLinks(item.id).then((ls) => { if (on) setLinks(ls); });
     }
     return () => { on = false; };
   }, [item.id, isPrincipal]);
+  const addLink = async () => {
+    const raw = linkUrl.trim();
+    if (!raw) return;
+    const norm = /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
+    if (!safeUrl(norm)) { ctx.notify("That doesn't look like a valid link"); return; }
+    const { error } = await api.addPrivateLink(item.id, norm, linkLabel.trim());
+    if (error) { ctx.notify("Couldn't add link: " + error.message); return; }
+    setLinkUrl(""); setLinkLabel("");
+    setLinks(await api.listPrivateLinks(item.id));
+  };
+  const removeLink = async (l) => {
+    if (!window.confirm("Remove this link?")) return;
+    await api.deletePrivateLink(l.id);
+    setLinks(await api.listPrivateLinks(item.id));
+  };
   // Mark this item's comments as seen for me, so the "new comments" dot clears.
   useEffect(() => { api.markItemSeen(me, item.id).then(() => ctx.reload()); }, [item.id]);
   const saveNote = async () => { setNoteSaving(true); await api.savePrivateNote(item.id, note); setNoteSaving(false); ctx.notify("Private note saved"); };
@@ -1284,6 +1303,26 @@ function ItemDetail({ ctx, item }) {
                   ))}
                 </div>
               )}
+              <div className="privlinks">
+                <div className="pl-head">Private links</div>
+                {links.length > 0 && (
+                  <div className="notefiles">
+                    {links.map((l) => (
+                      <div key={l.id} className="notefile">
+                        {safeUrl(l.url)
+                          ? <a className="nf-name" href={safeUrl(l.url)} target="_blank" rel="noreferrer" title={l.url}>{l.label || l.url}</a>
+                          : <span className="nf-name" title={l.url}>{l.label || l.url}</span>}
+                        <button className="linkbtn" onClick={() => removeLink(l)}>Remove</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="pl-add">
+                  <input type="text" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="Paste a URL…" onKeyDown={(e) => { if (e.key === "Enter") addLink(); }} />
+                  <input type="text" value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} placeholder="Label (optional)" onKeyDown={(e) => { if (e.key === "Enter") addLink(); }} />
+                  <button className="btn" onClick={addLink}>Add link</button>
+                </div>
+              </div>
             </div>
           )}
         </div>

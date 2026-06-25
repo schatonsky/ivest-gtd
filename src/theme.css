@@ -391,6 +391,14 @@ label.fld{display:block;font-size:12px;font-weight:600;color:var(--body);margin-
 .nf-act{flex:none}
 [data-theme="dark"] .notefile{background:#10151E;border-color:var(--line)}
 
+/* Private links (principal only) */
+.privlinks{margin-top:14px}
+.privlinks .pl-head{font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:8px}
+.pl-add{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.pl-add input{flex:1;min-width:150px}
+.privlinks .notefile a.nf-name{color:var(--accent-d);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.privlinks .notefile a.nf-name:hover{text-decoration:underline}
+
 /* Content width control */
 .content.width-comfortable{max-width:920px}
 .content.width-wide{max-width:1120px}
