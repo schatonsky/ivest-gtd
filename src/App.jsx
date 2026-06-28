@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase, isConfigured } from "./supabaseClient.js";
+import { supabase, isConfigured, setReadOnly } from "./supabaseClient.js";
 import { STATES, ownerOf, ago, I } from "./model.js";
 import * as api from "./api.js";
 import markUrl from "./assets/ivest-mark.png";
@@ -136,6 +136,7 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [viewAs, setViewAs] = useState(null); // principal preview: 'stephane' | 'nicole' | null(self)
   const allFilter = { status: "all", project: "all", contact: "all", location: "all" };
   const [itemsFilter, setItemsFilter] = useState(allFilter);
   const toastTimer = useRef(null);
@@ -217,18 +218,29 @@ export default function App() {
     return () => { if (unsub) unsub(); };
   }, [session]);
 
+  // Block all writes whenever the principal is previewing the other person's view.
+  useEffect(() => {
+    setReadOnly(!!(profile && profile.role === "principal" && viewAs && viewAs !== profile.user_key));
+  }, [profile, viewAs]);
+
   // ----- gates -----
   if (!isConfigured) return <ConfigWarning />;
   if (booting) return <AppSkeleton />;
   if (!session) return <Login notify={notify} />;
   if (!profile) return <AppSkeleton />;
 
-  const me = profile.user_key;          // 'stephane' | 'nicole'
-  const isPrincipal = profile.role === "principal";
+  const realIsPrincipal = profile.role === "principal";
+  // "View as" — the principal can preview / operate the other person's perspective (session only).
+  const effProfile = (realIsPrincipal && viewAs && viewAs !== profile.user_key)
+    ? (profiles.find((p) => p.user_key === viewAs) || profile)
+    : profile;
+  const me = effProfile.user_key;          // 'stephane' | 'nicole'
+  const isPrincipal = effProfile.role === "principal";
+  const viewingAsOther = me !== profile.user_key;
   const current = items.find((i) => i.id === currentId) || null;
 
   const ctx = {
-    me, isPrincipal, profile, profiles, items, comments, projects, contacts, activity, locations, reactions, reads, chat, chatReads,
+    me, isPrincipal, profile: effProfile, profiles, items, comments, projects, contacts, activity, locations, reactions, reads, chat, chatReads,
     notify, reload: loadData,
     open: (id) => { setCurrentId(id); setView("detail"); },
     goItems: () => { setCurrentId(null); setItemsFilter(allFilter); setView("items"); },
@@ -296,7 +308,7 @@ export default function App() {
           <button className="who-card" onClick={() => { setView("profiles"); setNavOpen(false); }}>
             <Avatar k={me} size={34} profiles={profiles} />
             <div className="meta">
-              <div className="nm">{profile.name}</div>
+              <div className="nm">{effProfile.name}</div>
               <div className="rl">{isPrincipal ? "Principal" : "Assistant"}</div>
             </div>
           </button>
@@ -310,6 +322,17 @@ export default function App() {
           <button className="btn ghost sm topsearch" aria-label="Search" onClick={() => setSearchOpen((s) => !s)}><Ico d={I.search} /></button>
           <GlobalSearch ctx={ctx} mobileOpen={searchOpen} />
           <div className="spacer" />
+          {realIsPrincipal && (
+            <div className={"viewas" + (viewingAsOther ? " preview" : "")} title="View the app as Stephane or Nicole">
+              <span className="viewas-lbl">View as</span>
+              {["stephane", "nicole"].map((k) => (
+                <button key={k} className={me === k ? "on" : ""}
+                  onClick={() => setViewAs(k === profile.user_key ? null : k)}>
+                  {profileFor(k, profiles).name.split(" ")[0]}
+                </button>
+              ))}
+            </div>
+          )}
           <button className="btn ghost sm" onClick={() => applyTheme(theme === "dark" ? "light" : "dark")}>
             <Ico d={theme === "dark" ? I.sun : I.moon} />
             <span>{theme === "dark" ? "Light" : "Dark"}</span>
@@ -322,6 +345,12 @@ export default function App() {
           </button>
         </div>
 
+        {viewingAsOther && (
+          <div className="preview-bar">
+            <Ico d={I.shield} /> Viewing as <b>{effProfile.name.split(" ")[0]}</b> — read-only.
+            <button onClick={() => setViewAs(null)}>Switch back to your view</button>
+          </div>
+        )}
         <div className={"content width-comfortable density-" + density} key={view + (currentId || "")}>
           {view === "plate" && <OnMyPlate ctx={ctx} />}
           {view === "dashboard" && <Dashboard ctx={ctx} />}
